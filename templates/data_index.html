@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Data Analyzer Homepage</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    a.card { display: block; padding: 16px; border: 1px solid #e5e5e5; border-radius: 10px; text-decoration: none; color: #222; background: #fafafa; }
+    a.card:hover { background: #f3f3f3; }
+    h1 { margin-bottom: 16px; }
+    h2 { margin: 0 0 8px; font-size: 18px; }
+    p { margin: 0; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Menu</h1>
+  <div class="cards">
+    <a class="card" href="{% url 'student_activities_page' %}">
+      <h2>Student Activities</h2>
+      <p>Activities for students (by ID).</p>
+    </a>
+    <a class="card" href="{% url 'sensor_heart_rate_activities_page' %}">
+      <h2>Sensor Heart Rate</h2>
+      <p>Sensor HR data - by Activity IDs.</p>
+    </a>
+    <a class="card" href="{% url 'hrv_metrics_page' %}">
+      <h2>HRV Metrics</h2>
+      <p>Compute HRV metrics per activity.</p>
+    </a>
+  </div>
+</body>
+</html>

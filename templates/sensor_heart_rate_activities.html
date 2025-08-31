@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sensor Heart Rate by Activities</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+    form { display: grid; grid-template-columns: repeat(3, minmax(30%, 30%)); gap: 12px; align-items: end; }
+    label { display: block; font-size: 12px; color: #444; margin-bottom: 4px; }
+    input { width: 40%; padding: 8px; box-sizing: border-box; }
+    button, a.button { padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; border-radius: 8px; text-decoration: none; color: #222; }
+    .meta { margin-top: 10px; color: #555; }
+    .pill { display: inline-block; padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; font-size: 12px; margin-right: 6px; background: #f7f7f7; }
+    table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+    th, td { border: 1px solid #e5e5e5; padding: 8px 10px; text-align: left; }
+    th { background: #fafafa; }
+    .btn { display: inline-block; padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; color: #222; text-decoration: none; border-radius: 8px; cursor: pointer; font: inherit; line-height: 1; -webkit-appearance: none; appearance: none; }
+    .search-btn { background: #4da6ff; margin-right: 4px; }
+    .page-header { display: flex; align-items: center; gap: 12px; }
+    .hr-activities-form { display: grid; grid-template-columns: minmax(320px, 40%) minmax(180px, 20%) minmax(260px, 1fr); gap: 12px; align-items: end; }
+    .hr-activities-form input, .hr-activities-form select { width: 100%; padding: 8px; box-sizing: border-box; }
+    .hr-activities-form .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-start; }
+    .actions-download { margin-top: 12px }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <a class="btn" href="{% url 'data_index' %}">
+      Back</a>
+    <h1>Sensor Heart Rate — by Activity IDs</h1>
+  </div>
+
+  <form class="hr-activities-form" method="get" action="">
+    <div>
+      <label for="activity_ids">activity_ids</label>
+      <input type="text" id="activity_ids"
+             name="activity_ids" required
+             placeholder="e.g. 22, 23, 101 102 103"
+             value="{{ params.activity_ids|default:''}}">
+    </div>
+
+    <div>
+      <label for="limit">limit</label>
+      <input type="number" id="limit"
+             name="limit"
+             value="{{ params.limit|default:500 }}"
+             min="-1" max="500">
+    </div>
+
+    <div class="actions">
+      <button class="btn search-btn" type="submit">
+        Search</button>
+      <a class="btn" href="{% url 'sensor_heart_rate_activities_page' %}">
+        Reset</a>
+      <button class="btn" type="submit" name="download" value="1" formtarget="_blank">
+        Download CSV</button>
+      <button class="btn search-btn" type="submit" name="download_processed" value="1" formtarget="_blank">
+        Download Processed CSV</button>
+    </div>
+  </form>
+
+  {% if matched_activity_ids %}
+    <div class="meta">
+      <span class="pill"><b>sessions:</b> {{ matched_session_ids|join:", " }}</span>
+      <span class="pill"><b>activities:</b> {{ matched_activity_ids|join:", " }}</span>
+      <span class="pill"><b>rows:</b> {{ count }}</span>
+    </div>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>id</th>
+        <th>activity_id</th>
+        <th>session_id</th>
+        <th>student_id</th>
+        <th>value_hr</th>
+        <th>status_hr</th>
+        <th>value_ibi_0</th>
+        <th>status_ibi_0</th>
+        <th>value_ibi_1</th>
+        <th>status_ibi_1</th>
+        <th>value_ibi_2</th>
+        <th>status_ibi_2</th>
+        <th>value_ibi_3</th>
+        <th>status_ibi_3</th>
+        <th>timestamp</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% if results and results|length %}
+        {% for r in results %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.activity_id }}</td>
+          <td>{{ r.session_id }}</td>
+          <td>{{ r.student_id }}</td>
+          <td>{{ r.value_heart_rate }}</td>
+          <td>{{ r.status_heart_rate }}</td>
+          <td>{{ r.value_ibi_0 }}</td>
+          <td>{{ r.status_ibi_0 }}</td>
+          <td>{{ r.value_ibi_1 }}</td>
+          <td>{{ r.status_ibi_1 }}</td>
+          <td>{{ r.value_ibi_2 }}</td>
+          <td>{{ r.status_ibi_2 }}</td>
+          <td>{{ r.value_ibi_3 }}</td>
+          <td>{{ r.status_ibi_3 }}</td>
+          <td>{{ r.timestamp }}</td>
+        </tr>
+        {% endfor %}
+      {% else %}
+      <tr><td colspan="15">No rows for selected filters.</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+</body>
+</html>
