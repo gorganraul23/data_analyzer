@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-    form { display: grid; grid-template-columns: repeat(5, minmax(160px, 1fr)); gap: 12px; align-items: end; }
+    form { display: grid; grid-template-columns: repeat(6, minmax(160px, 1fr)); gap: 12px; align-items: end; }
     label { display: block; font-size: 12px; color: #444; margin-bottom: 4px; }
     input, select { width: 100%; padding: 8px; box-sizing: border-box; }
     button, a.button { padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; border-radius: 8px; text-decoration: none; color: #222; }
@@ -28,45 +28,49 @@
       <h1>Student Activities</h1>
     </div>
 
-<form method="get" action="">
+    <form method="get" action="">
+      <div>
+        <label for="student_id">student</label>
+        <select id="student_id" name="student_id" required>
+          <option value="">{% if not params.student_id %}(choose){% else %}(change){% endif %}</option>
+          {% for s in students %}
+          <option value="{{ s.id }}"
+                  {% if params.student_id|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>
+          {{ s.id }} - {{ s.nickname|default:"-" }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
 
-  <div>
-    <label for="student_id">student</label>
-    <select id="student_id" name="student_id" required>
-      <option value="">{% if not params.student_id %}(choose){% else %}(change){% endif %}</option>
-      {% for s in students %}
-      <option value="{{ s.id }}"
-              {% if params.student_id|stringformat:"s" == s.id|stringformat:"s" %}selected{% endif %}>
-      {{ s.id }} - {{ s.nickname|default:"-" }}
-      </option>
-      {% endfor %}
-    </select>
-  </div>
+      <div>
+        <label for="done">done</label>
+        <select id="done" name="done">
+          <option value="" {% if params.done_select == "" %}selected{% endif %}>(any)</option>
+          <option value="1" {% if params.done_select == "1" %}selected{% endif %}>true</option>
+          <option value="0" {% if params.done_select == "0" %}selected{% endif %}>false</option>
+        </select>
+      </div>
 
-  <div>
-    <label for="done">done</label>
-    <select id="done" name="done">
-      <option value="" {% if params.done_select == "" %}selected{% endif %}>(any)</option>
-      <option value="1" {% if params.done_select == "1" %}selected{% endif %}>true</option>
-      <option value="0" {% if params.done_select == "0" %}selected{% endif %}>false</option>
-    </select>
-  </div>
+      <div>
+        <label for="types">activity types (comma separated)</label>
+        <input type="text" id="types" name="types" value="{{ params.types|default:'emotion,delay' }}">
+      </div>
 
-  <div>
-    <label for="types">activity types (comma separated)</label>
-    <input type="text" id="types" name="types" value="{{ params.types|default:'emotion,delay' }}">
-  </div>
+      <div>
+        <label for="ibi_count">minim valid IBI count (-1 for no minimum)</label>
+        <input type="number" id="ibi_count" name="ibi_count" value="{{ params.ibi_count|default:-1 }}" min="-1">
+      </div>
 
-  <div>
-    <label for="limit">limit</label>
-    <input type="number" id="limit" name="limit" value="{{ params.limit|default:-1 }}" min="-1" max="200">
-  </div>
+      <div>
+        <label for="limit">limit (-1 for all)</label>
+        <input type="number" id="limit" name="limit" value="{{ params.limit|default:-1 }}" min="-1" max="200">
+      </div>
 
-  <div>
-    <button class="btn search-btn" type="submit">Search</button>
-    <a class="btn" href="{% url 'student_activities_page' %}">Reset</a>
-  </div>
-</form>
+      <div>
+        <button class="btn search-btn" type="submit">Search</button>
+        <a class="btn" href="{% url 'student_activities_page' %}">Reset</a>
+      </div>
+    </form>
 
     {% if error %}
     <div class="error">{{ error }}</div>
@@ -99,6 +103,7 @@
           <th>done</th>
           <th>level</th>
           <th>row_count</th>
+          <th>valid_ibi_count</th>
         </tr>
       </thead>
 
@@ -113,10 +118,11 @@
               <td>{{ r.done }}</td>
               <td>{{ r.level }}</td>
               <td>{{ r.row_count }}</td>
+              <td>{{ r.valid_ibi_count  }}</td>
             </tr>
           {% endfor %}
         {% else %}
-          <tr><td colspan="7">No rows  for selected filters.</td></tr>
+          <tr><td colspan="8">No rows  for selected filters.</td></tr>
         {% endif %}
       </tbody>
     </table>

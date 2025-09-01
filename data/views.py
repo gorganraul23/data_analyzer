@@ -61,12 +61,20 @@ def student_activities_page(request):
     done_raw = (request.GET.get("done") or "").strip()
     types_raw = (request.GET.get("types") or "").strip()
     limit_raw = (request.GET.get("limit") or "-1").strip()
+    ibi_count_raw = (request.GET.get("ibi_count") or "-1").strip()
 
     # parse limit
     try:
         limit = max(-1, min(int(limit_raw), 200))
     except ValueError:
-        limit = 200
+        limit = -1
+
+    # parse ibi count
+    try:
+        ibi_count = max(-1, int(ibi_count_raw))
+        print(ibi_count)
+    except ValueError:
+        ibi_count = -1
 
     # parse done flag
     done_val = parse_bool(done_raw)
@@ -124,6 +132,31 @@ def student_activities_page(request):
 
         results = StudentActivitiesSerializer(act_qs, many=True).data
 
+        # add valid_ibi_count for each activity
+        filtered_results = []
+        for r in results:
+            act_id = r["activity_id"] if "activity_id" in r else r["id"]
+            hr_qs = SensorHeartRate.objects.filter(activity_id=act_id).only(
+                "value_ibi_0", "status_ibi_0",
+                "value_ibi_1", "status_ibi_1",
+                "value_ibi_2", "status_ibi_2",
+                "value_ibi_3", "status_ibi_3"
+            )
+            valid_count = 0
+            for hr in hr_qs:
+                for i in range(4):
+                    val = getattr(hr, f"value_ibi_{i}")
+                    st = getattr(hr, f"status_ibi_{i}")
+                    if st == 110 and val is not None:
+                        valid_count += 1
+
+            r["valid_ibi_count"] = valid_count
+            # apply filter only if ibi_count >= 0
+            if ibi_count == -1 or valid_count >= ibi_count:
+                filtered_results.append(r)
+
+        results = filtered_results
+
         # student nickname
         try:
             student_obj = Student.objects.get(pk=student_id)
@@ -138,6 +171,7 @@ def student_activities_page(request):
             "done_select": done_select,
             "types": types_raw,
             "limit": limit,
+            "ibi_count": ibi_count,
         },
         "students": students,
         "student_nickname": student_nickname,
@@ -155,13 +189,13 @@ def student_activities_page(request):
 def sensor_heart_rate_activities_page(request):
 
     activity_ids_raw = (request.GET.get("activity_ids") or "").strip()
-    limit_raw = (request.GET.get("limit") or "500").strip()
+    limit_raw = (request.GET.get("limit") or "-1").strip()
 
     # parse limit
     try:
         limit = max(-1, min(int(limit_raw), 500))
     except ValueError:
-        limit = 500
+        limit = -1
 
     # extract activities ids
     activity_ids = [int(x) for x in re.findall(r"\d+", activity_ids_raw)]
@@ -215,7 +249,6 @@ def sensor_heart_rate_activities_page(request):
         w = csv.writer(resp)
         w.writerow(headers)
         for row in results:
-            # w.writerow([row.get(h, "") for h in headers])
             out = []
             for h in headers:
                 cell = row.get(h, "")
@@ -293,31 +326,40 @@ def hrv_metrics_page(request):
         act_ids = df["activity_id"].dropna().astype(int).unique().tolist()
         act_types = dict(Activity.objects.filter(id__in=act_ids).values_list("id", "activityType"))
 
-        # group by activity_id and compute metrics
+        # parse checkboxes
+        include_lib = request.POST.get("include_lib") == "1"
+        include_custom = request.POST.get("include_custom") == "1"
+
         for act_id, g in df.groupby("activity_id", dropna=True):
             ibi_ms = g["value_ibi"].dropna().astype(float).values.tolist()
-            metrics = compute_metrics_from_ibi_list(ibi_ms)
-            metrics_lib = compute_metrics_from_ibi_list_lib(ibi_ms)
             act_id_int = int(act_id) if pd.notna(act_id) else None
-            row = {
-                "activity_id": act_id_int,
-                "activityType": act_types.get(act_id_int),
-                **{k: (None if pd.isna(v) else float(v)) for k, v in metrics.items()},
-            }
-            row_lib = {
-                "activity_id": act_id_int,
-                "activityType": act_types.get(act_id_int),
-                **{k: (None if pd.isna(v) else float(v)) for k, v in metrics_lib.items()},
-            }
-            results.append(row)
-            results_lib.append(row_lib)
+
+            if include_custom:
+                metrics = compute_metrics_from_ibi_list(ibi_ms)
+                row = {
+                    "activity_id": act_id_int,
+                    "activityType": act_types.get(act_id_int),
+                    **{k: (None if pd.isna(v) else float(v)) for k, v in metrics.items()},
+                }
+                results.append(row)
+
+            if include_lib:
+                metrics_lib = compute_metrics_from_ibi_list_lib(ibi_ms)
+                row_lib = {
+                    "activity_id": act_id_int,
+                    "activityType": act_types.get(act_id_int),
+                    **{k: (None if pd.isna(v) else float(v)) for k, v in metrics_lib.items()},
+                }
+                results_lib.append(row_lib)
 
         # sort by activity_id
-        results.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
-        results_lib.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
+        if include_custom:
+            results.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
+        if include_lib:
+            results_lib.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
 
         # CSV download
-        if (request.POST.get("download") or "").lower() in ("1","true","yes","on","csv"):
+        if (request.POST.get("download") or "").lower() == "1":
             headers = ["activity_id", "activityType",
                        "mean_hr", "mean_rr", "rmssd", "sdnn", "nn50", "pnn50", "tinn",
                        "stress_index", "pns_index", "sns_index",
@@ -330,7 +372,14 @@ def hrv_metrics_page(request):
             resp["Content-Disposition"] = f'attachment; filename="{fname}"'
             w = csv.writer(resp)
             w.writerow(headers)
-            for r in results_lib:
+
+            results_to_download = []
+            if include_custom and not include_lib:
+                results_to_download = results
+            else:
+                results_to_download = results_lib
+
+            for r in results_to_download:
                 row = []
                 for h in headers:
                     val = r.get(h, "")
@@ -345,3 +394,39 @@ def hrv_metrics_page(request):
             return resp
 
     return render(request, "hrv_metrics.html", {"results": results, "results_lib": results_lib, "error": error})
+
+
+# --------- HRV-Interpretation page ---------
+
+@require_http_methods(["GET", "POST"])
+def hrv_interpretation_page(request):
+
+    results = []
+    error = None
+
+    if request.method == "POST" and request.FILES.get("file"):
+        f = request.FILES["file"]
+
+        try:
+            df = pd.read_csv(f)
+        except Exception as e:
+            error = f"Failed to read CSV: {e}"
+            return render(request, "hrv_interpretation.html", {"error": error, "results": results})
+
+        required_cols = {"activity_id", "activityType",
+                         "mean_hr", "mean_rr", "rmssd", "sdnn", "nn50", "pnn50", "tinn",
+                         "stress_index", "pns_index", "sns_index", "lf", "hf", "lf_hf",
+                         "sd1", "sd2", "sd2_sd1", "ap_en", "samp_en", "dfa_a1", "dfa_a2"}
+        if not required_cols.issubset(set(df.columns)):
+            missing = required_cols - set(df.columns)
+            error = f"Missing required columns: {', '.join(missing)}"
+            return render(request, "hrv_interpretation.html", {"error": error, "results": results})
+
+        for _, row in df.iterrows():
+            results.append({col: row[col] for col in required_cols})
+
+        # Perform analysis
+        if (request.POST.get("analyze") or "").lower() == "1":
+            print('yess')
+
+    return render(request, "hrv_interpretation.html", {"results": results, "error": error})

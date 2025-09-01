@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>HRV Interpretation</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+	form { display: grid; gap: 16px; align-items: start; }
+	label { display: block; font-size: 12px; color: #444; margin-bottom: 4px; }
+	input { width: 100%; padding: 8px; box-sizing: border-box; }
+	button, a.button { padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; border-radius: 8px; text-decoration: none; color: #222; }
+	.meta { margin-top: 10px; color: #555; }
+	table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+	th, td { border: 1px solid #e5e5e5; padding: 8px 10px; text-align: left; }
+	th { background: #fafafa; }
+	.btn { display: inline-block; padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; color: #222; text-decoration: none; border-radius: 8px; cursor: pointer; font: inherit; line-height: 1; -webkit-appearance: none; appearance: none; }
+    .search-btn { background: #4da6ff; margin-left: 4px; }
+    .page-header { display: flex; align-items: center; gap: 12px; }
+    .highlight-row { background-color: #e6f2ff; }
+    input[type="file"] { padding: 6px; font-size: 13px; }
+  </style>
+</head>
+<body>
+    <div class="page-header">
+		<a class="btn" href="{% url 'data_index' %}">
+			Back</a>
+		<h1>HRV Interpretation</h1>
+    </div>
+
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div>
+        <label for="file">Upload HRV Metrics CSV</label>
+        <input type="file" id="file" name="file" accept=".csv" required>
+      </div>
+
+      <div class="actions">
+        <a class="btn" href="{% url 'hrv_interpretation_page' %}">Reset</a>
+        <button class="btn search-btn" type="submit" name="action" value="view">View</button>
+        <button class="btn search-btn" type="submit" name="analyze" value="1">View &amp; Analyze</button>
+      </div>
+    </form>
+
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+    <h4>HRV Metrics</h4>
+    <table>
+      <thead>
+          <tr>
+            <th>Activity</th>
+            <th>Type</th>
+            <th>Mean HR</th>
+            <th>Mean RR</th>
+            <th>RMSSD</th>
+            <th>SDNN</th>
+            <th>NN50</th>
+            <th>pNN50</th>
+            <th>TINN</th>
+            <th>LF</th>
+            <th>HF</th>
+            <th>LF / HF</th>
+            <th>SD1</th>
+            <th>SD2</th>
+            <th>SD2 / SD1</th>
+            <th>ApEn</th>
+            <th>SampEn</th>
+            <th>DFA_a1</th>
+            <th>DFA_a2</th>
+            <th>Stress</th>
+            <th>PNS</th>
+            <th>SNS</th>
+          </tr>
+      </thead>
+      <tbody>
+	    {% if results and results|length %}
+          {% for r in results %}
+            <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
+              <td>{{ r.activity_id }}</td>
+              <td>{{ r.activityType }}</td>
+              <td>{{ r.mean_hr|floatformat:2 }}</td>
+              <td>{{ r.mean_rr|floatformat:2 }}</td>
+              <td>{{ r.rmssd|floatformat:3 }}</td>
+              <td>{{ r.sdnn|floatformat:3 }}</td>
+              <td>{{ r.nn50|floatformat:3 }}</td>
+              <td>{{ r.pnn50|floatformat:3 }}</td>
+              <td>{{ r.tinn|floatformat:3 }}</td>
+              <td>{{ r.lf|floatformat:3 }}</td>
+              <td>{{ r.hf|floatformat:3 }}</td>
+              <td>{{ r.lf_hf|floatformat:3 }}</td>
+              <td>{{ r.sd1|floatformat:3 }}</td>
+              <td>{{ r.sd2|floatformat:3 }}</td>
+              <td>{{ r.sd2_sd1|floatformat:3 }}</td>
+              <td>{{ r.ap_en|floatformat:3 }}</td>
+              <td>{{ r.samp_en|floatformat:3 }}</td>
+              <td>{{ r.dfa_a1|floatformat:3 }}</td>
+              <td>{{ r.dfa_a2|floatformat:3 }}</td>
+              <td>{{ r.stress_index|floatformat:2 }}</td>
+              <td>{{ r.pns_index|floatformat:3 }}</td>
+              <td>{{ r.sns_index|floatformat:3 }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="22">No rows displayed.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+</body>
+</html>

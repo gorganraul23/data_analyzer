@@ -1,5 +1,9 @@
 import math
 import numpy as np
+
+import matplotlib
+matplotlib.use("Agg")
+
 import pyhrv.time_domain as td
 import pyhrv.frequency_domain as fd
 import pyhrv.nonlinear as nl
@@ -34,23 +38,31 @@ def compute_nn50_lib(rr_list):
 
 def compute_pnn50_lib(rr_list):
     results = td.time_domain(rr_list, plot=False, show=False)
+    if "plot" in results:
+        results.pop("plot", None)
     return results['pnn50']
 
 def compute_tinn_lib(rr_list):
     results = td.tinn(rr_list, plot=False, show=False)
+    if "plot" in results:
+        results.pop("plot", None)
     return results['tinn']
 
 def compute_ftt_lib(rr_list):
-    res = fd.welch_psd(nni=rr_list, show=False)
-    vlf, lf, hf = res['fft_abs']
+    results = fd.welch_psd(nni=rr_list, show=False)
+    if "plot" in results:
+        results.pop("plot", None)
+    vlf, lf, hf = results['fft_abs']
     return {
         'lf': float(lf),
         'hf': float(hf),
-        'ratio': float(res['fft_ratio']),
+        'ratio': float(results['fft_ratio']),
     }
 
 def compute_sd_lib(rr_list):
     results = nl.poincare(rr_list, show=False)
+    if "plot" in results:
+        results.pop("plot", None)
     return {
         'sd1': results['sd1'],
         'sd2': results['sd2'],
@@ -63,6 +75,8 @@ def compute_sampen_lib(rr_list):
 
 def compute_dfa_lib(rr_list):
     results = nl.dfa(rr_list, show=False)
+    if "plot" in results:
+        results.pop("plot", None)
     return {
         'dfa_a1': results['dfa_alpha1'],
         'dfa_a2': results['dfa_alpha2'],

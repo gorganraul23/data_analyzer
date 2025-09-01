@@ -6,9 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-	form { display: grid;  gap: 12px; align-items: start; }
+	form { display: grid; gap: 16px; align-items: start; }
 	label { display: block; font-size: 12px; color: #444; margin-bottom: 4px; }
-	input { width: 40%; padding: 8px; box-sizing: border-box; }
+	input { width: 100%; padding: 8px; box-sizing: border-box; }
 	button, a.button { padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; border-radius: 8px; text-decoration: none; color: #222; }
 	.meta { margin-top: 10px; color: #555; }
 	.pill { display: inline-block; padding: 2px 8px; border: 1px solid #ddd; border-radius: 999px; font-size: 12px; margin-right: 6px; background: #f7f7f7; }
@@ -16,9 +16,13 @@
 	th, td { border: 1px solid #e5e5e5; padding: 8px 10px; text-align: left; }
 	th { background: #fafafa; }
 	.btn { display: inline-block; padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; color: #222; text-decoration: none; border-radius: 8px; cursor: pointer; font: inherit; line-height: 1; -webkit-appearance: none; appearance: none; }
-    .search-btn { background: #4da6ff; margin-right: 4px; }
+    .search-btn { background: #4da6ff; margin-right: 4px; margin-left: 4px; }
     .page-header { display: flex; align-items: center; gap: 12px; }
     .highlight-row { background-color: #e6f2ff; }
+    .form-row { display: flex; align-items: flex-end; gap: 20px; }
+    .form-item label { display: block; font-size: 12px; color: #444; margin-bottom: 4px; }
+    input[type="file"] { padding: 6px; font-size: 13px; }
+    .checkboxes label { display: inline-flex; align-items: center; margin-right: 16px; font-size: 13px; color: #333; }
   </style>
 </head>
 <body>
@@ -30,10 +34,17 @@
 
     <form method="post" enctype="multipart/form-data">
       {% csrf_token %}
-      <div>
-        <label for="file">Upload IBI Processed CSV</label>
-        <input type="file" id="file" name="file" accept=".csv" required>
+      <div class="form-row">
+        <div class="form-item">
+          <label for="file">Upload IBI Processed CSV</label>
+          <input type="file" id="file" name="file" accept=".csv" required>
+        </div>
+        <div class="form-item checkboxes">
+          <label><input type="checkbox" name="include_lib" value="1" checked>Include PyHRV</label>
+          <label><input type="checkbox" name="include_custom" value="1" checked>Include Custom</label>
+        </div>
       </div>
+
       <div class="actions">
         <button class="btn" type="submit" name="action" value="view">Compute &amp; View</button>
         <button class="btn search-btn" type="submit" name="download" value="1">Compute &amp; Download CSV</button>
@@ -42,7 +53,7 @@
 
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
-    <h4>HRV Metrics by pyhrv lib</h4>
+    <h4>HRV Metrics by PyHRV lib</h4>
     <table>
       <thead>
           <tr>
@@ -104,7 +115,7 @@
       </tbody>
     </table>
 
-    <h4>HRV Metrics by manual formulas</h4>
+    <h4>HRV Metrics by custom formulas</h4>
     <table>
       <thead>
           <tr>
