@@ -13,7 +13,7 @@ II. USE
 2. Open on web
     - open http://127.0.0.1:8000/
 
-3. See the 3 pages. Start the operations from left to right.
+3. See the 3 pages for data management. Start the operations from left to right.
 
 4. Open student-activities page
     - here you can see the student's activities that are done and can be analyzed
@@ -21,6 +21,7 @@ II. USE
         - choose a student from DB
         - choose the 'done' activities
         - choose the activity types you want. It's a LIKE in SQL, comma separated (e.g. 'emotion,delay'), leave empty for all
+        - choose the minimum count of valid IBI values (usually 120), -1 for no minimum limit
         - choose the rows count limit, -1 default (all)
         - see the results in the table
         - UNDER THE INPUTS, YOU HAVE THE ACTIVITY IDS AND YOU CAN COPY THEM FOR THE NEXT PAGE.
@@ -35,8 +36,23 @@ II. USE
 
 6. Go to the third page - HRV Metrics
     - here you can upload the processed CSV and compute the HRV metrics.
-    - the HRV metrics are computed using 2 methods: pyhrv library and manual written functions
-    - there will be 2 tables with results, and you will download the one computed with pyhrv (this can be changed easy in the code).
+    - the HRV metrics are computed using 2 methods: PyHRV library and manual written functions
+    - there will be 2 tables with the results
+    - when click on Compute and View: if Include PyHRV is checked, the first table will be competed,
+        if Include Custom is checked, the second table will be competed,
+        if both are checked, both tables will be completed.
+    - when click on Compute and Download: if only Include Custom is checked, custom results are downloaded,
+        else, PhHRV results are downloaded
     -STEPS:
         - UPLOAD THE PREVIOUS GENERATED CSV
-        - you can compute and see the results in a table (grouped by activity id) or COMPUTE AND DOWNLOAD A CSV WITH THE RESULTS (pyhrv)
+        - Compute and View - only to see the results
+        - COMPUTE AND DOWNLOAD - to download the CSV with the results
+
+7. See the interpretation of the results in Interpretation page
+    - here you can see the differences between relax and cognitive tasks
+    - with green - the transition is good (increase / decrease)
+    - with red - the transition is not as expected
+    -STEPS:
+        - Upload the previous CSV with the results
+        - View - to only view the results again
+        - View and Analyze - to start the analysis

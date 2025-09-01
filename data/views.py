@@ -72,7 +72,6 @@ def student_activities_page(request):
     # parse ibi count
     try:
         ibi_count = max(-1, int(ibi_count_raw))
-        print(ibi_count)
     except ValueError:
         ibi_count = -1
 
