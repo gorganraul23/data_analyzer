@@ -3,7 +3,6 @@ import numpy as np
 
 import matplotlib
 matplotlib.use("Agg")
-
 import pyhrv.time_domain as td
 import pyhrv.frequency_domain as fd
 import pyhrv.nonlinear as nl
@@ -409,6 +408,15 @@ def compute_pns_sns(rr_list, norms=None, weights=None):
     rmssd = compute_rmssd(rr_list)
     stress = compute_stress_index(rr_list)
 
+    norms = {
+        'mean_rr': {'mu': 900.0, 'sd': 100.0},
+        'rmssd': {'mu': 42.0, 'sd': 15.0},
+        'sd1_pct': {'mu': 5.0, 'sd': 2.0},
+        'mean_hr': {'mu': 67.0, 'sd': 10.0},
+        'stress': {'mu': 10.0, 'sd': 5.0},
+        'sd2_pct': {'mu': 20.0, 'sd': 7.0},
+    }
+
     # normalize SD1, SD2 by mean RR to get SD1(%), SD2(%)
     sd1_pct = float(100.0 * sd1 / mean_rr) if (math.isfinite(sd1) and mean_rr > 0) else float("nan")
     sd2_pct = float(100.0 * sd2 / mean_rr) if (math.isfinite(sd2) and mean_rr > 0) else float("nan")
@@ -565,15 +573,15 @@ def compute_metrics_from_ibi_list(ibi_list):
     rr_results = compute_rr_mean_lib(rr)
     mean_rr_lib = rr_results["mean"]
     std_rr_lib = rr_results["std"]
-    norms = {
-        'mean_rr': {'mu': mean_rr_lib, 'sd': std_rr_lib},
-        'rmssd': {'mu': rmssd, 'sd': 60.5},
-        'sd1_pct': {'mu': sd1, 'sd': 20.0},
-        'mean_hr': {'mu': mean_hr_lib, 'sd': std_hr_lib},
-        'stress': {'mu': stress_index, 'sd': 2},
-        'sd2_pct': {'mu': sd2, 'sd': 40.0},
-    }
-    pns_index, sns_index = compute_pns_sns(rr_list=rr, norms=norms)
+    # norms = {
+    #     'mean_rr': {'mu': mean_rr_lib, 'sd': std_rr_lib},
+    #     'rmssd': {'mu': rmssd, 'sd': 60.5},
+    #     'sd1_pct': {'mu': sd1, 'sd': 20.0},
+    #     'mean_hr': {'mu': mean_hr_lib, 'sd': std_hr_lib},
+    #     'stress': {'mu': stress_index, 'sd': 2},
+    #     'sd2_pct': {'mu': sd2, 'sd': 40.0},
+    # }
+    pns_index, sns_index = compute_pns_sns(rr_list=rr)
 
     ap_en = compute_ap_en(rr, m=2)
     samp_en = compute_samp_en(rr, m=2)
@@ -631,8 +639,8 @@ def compute_metrics_from_ibi_list_lib(ibi_list):
     mean_rr = rr_results["mean"]
     std_rr = rr_results["std"]
 
-    stress_index = 0
-    pns_index, sns_index = 0, 0
+    stress_index = compute_stress_index(rr)                 # custom function (no Stress Index in PyHRV)
+    pns_index, sns_index = compute_pns_sns(rr_list=rr)      # custom function (no PNS SNS in PyHRV)
 
     ftt_results = compute_ftt_lib(rr)
     lf_power = ftt_results["lf"]
@@ -644,7 +652,7 @@ def compute_metrics_from_ibi_list_lib(ibi_list):
     sd2 = sd_results["sd2"]
     sd2_sd1 = sd_results["ratio"]
 
-    ap_en = 0
+    ap_en = compute_ap_en(rr)       # custom function (no ApEn in PyHRV)
     samp_en = compute_sampen_lib(rr)
 
     dfa_results = compute_dfa_lib(rr)

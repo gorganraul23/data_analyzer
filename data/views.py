@@ -157,6 +157,14 @@ def student_activities_page(request):
 
         results = filtered_results
 
+        # recompute matched activity and session ids after ibi_count filter
+        matched_activities_ids = [r["activity_id"] if "activity_id" in r else r["id"] for r in results]
+        matched_session_ids = list(
+            Activity.objects.filter(id__in=matched_activities_ids)
+            .values_list("session_id", flat=True)
+            .distinct()
+        )
+
         # student nickname
         try:
             student_obj = Student.objects.get(pk=student_id)
@@ -403,6 +411,7 @@ def hrv_interpretation_page(request):
 
     results = []
     error = None
+    relax_means = {}
 
     if request.method == "POST" and request.FILES.get("file"):
         f = request.FILES["file"]
@@ -422,11 +431,37 @@ def hrv_interpretation_page(request):
             error = f"Missing required columns: {', '.join(missing)}"
             return render(request, "hrv_interpretation.html", {"error": error, "results": results})
 
-        for _, row in df.iterrows():
-            results.append({col: row[col] for col in required_cols})
+        # Compute relax (delaygratification) average
+        relax_df = df[df["activityType"] == "delaygratification"]
+        if not relax_df.empty:
+            relax_means = relax_df.mean(numeric_only=True).to_dict()
 
-        # Perform analysis
-        if (request.POST.get("analyze") or "").lower() == "1":
-            print('yess')
+        # check if analyze is requested
+        analyzed = (request.POST.get("analyze") or "").lower() == "1"
+
+        # expected directions
+        decrease_metrics = ["rmssd", "sdnn", "mean_rr", "nn50", "pnn50", "tinn",
+                            "lf", "hf", "sd1", "sd2", "sd2_sd1",
+                            "ap_en", "samp_en", "dfa_a1", "dfa_a2", "pns_index"]
+        increase_metrics = ["mean_hr", "lf_hf", "stress_index", "sns_index"]
+
+        for _, row in df.iterrows():
+            r = {col: row[col] for col in required_cols}
+            r["styles"] = {}
+
+            if analyzed and relax_means and row["activityType"] != "delaygratification":
+                for m in decrease_metrics:
+                    val = r[m]
+                    baseline = relax_means.get(m)
+                    if pd.notna(val) and pd.notna(baseline) and val != 0:
+                        r["styles"][m] = "background-color: #c6efce;" if val < baseline else "background-color: #ffc7ce;"
+
+                for m in increase_metrics:
+                    val = r[m]
+                    baseline = relax_means.get(m)
+                    if pd.notna(val) and pd.notna(baseline) and val != 0:
+                        r["styles"][m] = "background-color: #c6efce;" if val > baseline else "background-color: #ffc7ce;"
+
+            results.append(r)
 
     return render(request, "hrv_interpretation.html", {"results": results, "error": error})
