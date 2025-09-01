@@ -34,9 +34,9 @@ II. USE
         - CLICK 'DOWNLOAD PROCESSED CSV' TO DOWNLOAD THE CSV READY FOR ANALYSIS
 
 6. Go to the third page - HRV Metrics
-    - here you can upload the processed CSV and compute the HRV metrics
+    - here you can upload the processed CSV and compute the HRV metrics.
+    - the HRV metrics are computed using 2 methods: pyhrv library and manual written functions
+    - there will be 2 tables with results, and you will download the one computed with pyhrv (this can be changed easy in the code).
     -STEPS:
-        - UPLOAD THE PREVIOUS CSV GENERATED
-        - you can compute and see the results in a table (grouped by activity id) or COMPUTE AND DOWNLOAD A CSV WITH THE RESULTS
-
-
+        - UPLOAD THE PREVIOUS GENERATED CSV
+        - you can compute and see the results in a table (grouped by activity id) or COMPUTE AND DOWNLOAD A CSV WITH THE RESULTS (pyhrv)

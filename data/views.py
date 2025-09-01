@@ -12,12 +12,12 @@ from .models import SensorHeartRate, Student, Session, Activity
 from .serializers import SensorHeartRateSerializer, StudentSerializer, SessionSerializer, ActivitySerializer, \
     StudentActivitiesSerializer, SensorHeartRateActivitiesSerializer
 from .utils.date_converter import EpochMsDateTimeField
-from .utils.hrv import compute_metrics_from_ibi_ms
+from .utils.hrv import compute_metrics_from_ibi_list, compute_metrics_from_ibi_list_lib
 from .utils.parsers import parse_bool, excel_text
 
 
 
-# --------- Get All - Test ---------
+# --------- Get All - for test ---------
 
 @api_view(['GET'])
 def sensor_heart_rate(request):
@@ -54,6 +54,7 @@ def data_index(request):
 
 
 # --------- Student - Activities page ---------
+
 def student_activities_page(request):
 
     student_id_raw = (request.GET.get("student_id") or "").strip()
@@ -150,6 +151,7 @@ def student_activities_page(request):
 
 
 # --------- Sensor Heart Rate - Activities page ---------
+
 def sensor_heart_rate_activities_page(request):
 
     activity_ids_raw = (request.GET.get("activity_ids") or "").strip()
@@ -259,10 +261,12 @@ def sensor_heart_rate_activities_page(request):
 
 
 # --------- HRV-Metrics page ---------
+
 @require_http_methods(["GET", "POST"])
 def hrv_metrics_page(request):
 
     results = []
+    results_lib = []
     error = None
 
     if request.method == "POST" and request.FILES.get("file"):
@@ -272,13 +276,13 @@ def hrv_metrics_page(request):
             df = pd.read_csv(f)
         except Exception as e:
             error = f"Failed to read CSV: {e}"
-            return render(request, "hrv_metrics.html", {"error": error, "results": results})
+            return render(request, "hrv_metrics.html", {"error": error, "results": results, "results_lib": results_lib})
 
         required_cols = {"id", "activity_id", "session_id", "student_id", "value_ibi"}
         if not required_cols.issubset(set(df.columns)):
             missing = required_cols - set(df.columns)
             error = f"Missing required columns: {', '.join(missing)}"
-            return render(request, "hrv_metrics.html", {"error": error, "results": results})
+            return render(request, "hrv_metrics.html", {"error": error, "results": results, "results_lib": results_lib})
 
         # ensure numeric types
         df["activity_id"] = pd.to_numeric(df["activity_id"], errors="coerce")
@@ -292,31 +296,52 @@ def hrv_metrics_page(request):
         # group by activity_id and compute metrics
         for act_id, g in df.groupby("activity_id", dropna=True):
             ibi_ms = g["value_ibi"].dropna().astype(float).values.tolist()
-            metrics = compute_metrics_from_ibi_ms(ibi_ms)
+            metrics = compute_metrics_from_ibi_list(ibi_ms)
+            metrics_lib = compute_metrics_from_ibi_list_lib(ibi_ms)
             act_id_int = int(act_id) if pd.notna(act_id) else None
             row = {
                 "activity_id": act_id_int,
                 "activityType": act_types.get(act_id_int),
                 **{k: (None if pd.isna(v) else float(v)) for k, v in metrics.items()},
             }
+            row_lib = {
+                "activity_id": act_id_int,
+                "activityType": act_types.get(act_id_int),
+                **{k: (None if pd.isna(v) else float(v)) for k, v in metrics_lib.items()},
+            }
             results.append(row)
+            results_lib.append(row_lib)
 
         # sort by activity_id
         results.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
+        results_lib.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
 
         # CSV download
         if (request.POST.get("download") or "").lower() in ("1","true","yes","on","csv"):
             headers = ["activity_id", "activityType",
-                       "mean_HR", "rmssd", "sdnn", "stress_index", "pns_index", "sns_index",
-                       "pnn50", "tinn", "lf", "hf", "lf_hf", "sd1", "sd2", "sd2_sd1",
+                       "mean_hr", "mean_rr", "rmssd", "sdnn", "nn50", "pnn50", "tinn",
+                       "stress_index", "pns_index", "sns_index",
+                       "lf", "hf", "lf_hf",
+                       "sd1", "sd2", "sd2_sd1",
                        "ap_en", "samp_en", "dfa_a1", "dfa_a2"]
+            headers_2_decimals = [ "mean_hr", "mean_rr", "stress_index" ]
             resp = HttpResponse(content_type="text/csv")
             fname = f"hrv_metrics.csv"
             resp["Content-Disposition"] = f'attachment; filename="{fname}"'
             w = csv.writer(resp)
             w.writerow(headers)
-            for r in results:
-                w.writerow([r.get(h, "") for h in headers])
+            for r in results_lib:
+                row = []
+                for h in headers:
+                    val = r.get(h, "")
+                    if isinstance(val, float):
+                        if h in headers_2_decimals:
+                            row.append(f"{val:.2f}")
+                        else:
+                            row.append(f"{val:.3f}")
+                    else:
+                        row.append(val)
+                w.writerow(row)
             return resp
 
-    return render(request, "hrv_metrics.html", {"results": results, "error": error})
+    return render(request, "hrv_metrics.html", {"results": results, "results_lib": results_lib, "error": error})

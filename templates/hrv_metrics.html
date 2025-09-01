@@ -18,6 +18,7 @@
 	.btn { display: inline-block; padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; color: #222; text-decoration: none; border-radius: 8px; cursor: pointer; font: inherit; line-height: 1; -webkit-appearance: none; appearance: none; }
     .search-btn { background: #4da6ff; margin-right: 4px; }
     .page-header { display: flex; align-items: center; gap: 12px; }
+    .highlight-row { background-color: #e6f2ff; }
   </style>
 </head>
 <body>
@@ -41,6 +42,69 @@
 
     {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
+    <h4>HRV Metrics by pyhrv lib</h4>
+    <table>
+      <thead>
+          <tr>
+            <th>Activity</th>
+            <th>Type</th>
+            <th>Mean HR</th>
+            <th>Mean RR</th>
+            <th>RMSSD</th>
+            <th>SDNN</th>
+            <th>NN50</th>
+            <th>pNN50</th>
+            <th>TINN</th>
+            <th>Stress</th>
+            <th>PNS</th>
+            <th>SNS</th>
+            <th>LF</th>
+            <th>HF</th>
+            <th>LF / HF</th>
+            <th>SD1</th>
+            <th>SD2</th>
+            <th>SD2 / SD1</th>
+            <th>ApEn</th>
+            <th>SampEn</th>
+            <th>DFA_a1</th>
+            <th>DFA_a2</th>
+          </tr>
+      </thead>
+      <tbody>
+	    {% if results_lib and results_lib|length %}
+          {% for r in results_lib %}
+            <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
+              <td>{{ r.activity_id }}</td>
+              <td>{{ r.activityType }}</td>
+              <td>{{ r.mean_hr|floatformat:2 }}</td>
+              <td>{{ r.mean_rr|floatformat:2 }}</td>
+              <td>{{ r.rmssd|floatformat:3 }}</td>
+              <td>{{ r.sdnn|floatformat:3 }}</td>
+              <td>{{ r.nn50|floatformat:3 }}</td>
+              <td>{{ r.pnn50|floatformat:3 }}</td>
+              <td>{{ r.tinn|floatformat:3 }}</td>
+              <td>{{ r.stress_index|floatformat:2 }}</td>
+              <td>{{ r.pns_index|floatformat:3 }}</td>
+              <td>{{ r.sns_index|floatformat:3 }}</td>
+              <td>{{ r.lf|floatformat:3 }}</td>
+              <td>{{ r.hf|floatformat:3 }}</td>
+              <td>{{ r.lf_hf|floatformat:3 }}</td>
+              <td>{{ r.sd1|floatformat:3 }}</td>
+              <td>{{ r.sd2|floatformat:3 }}</td>
+              <td>{{ r.sd2_sd1|floatformat:3 }}</td>
+              <td>{{ r.ap_en|floatformat:3 }}</td>
+              <td>{{ r.samp_en|floatformat:3 }}</td>
+              <td>{{ r.dfa_a1|floatformat:3 }}</td>
+              <td>{{ r.dfa_a2|floatformat:3 }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="22">No rows displayed.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <h4>HRV Metrics by manual formulas</h4>
     <table>
       <thead>
           <tr>
@@ -72,7 +136,7 @@
       <tbody>
 	    {% if results and results|length %}
           {% for r in results %}
-            <tr>
+            <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
               <td>{{ r.activity_id }}</td>
               <td>{{ r.activityType }}</td>
               <td>{{ r.mean_hr|floatformat:2 }}</td>

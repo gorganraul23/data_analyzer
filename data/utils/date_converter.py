@@ -27,21 +27,6 @@ class EpochMsDateTimeField(serializers.Field):
         dt_local = dt_utc.astimezone(get_local_tz())
         return dt_local.isoformat()
 
-        # if value in (None, "", 0):
-        #     return None
-        # try:
-        #     ms = int(value)
-        # except (TypeError, ValueError):
-        #     return None
-        #
-        # dt_utc = datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc)
-        # dt_local = dt_utc.astimezone(get_local_tz())
-        #
-        # # Return "dd-mm-yyyy hh:mm:ss.mmmm"
-        # milli = int(dt_local.microsecond / 1000)  # 0..999
-        #
-        # return dt_local.strftime("%d-%m-%Y %H:%M:%S") + f".{milli:03d}"
-
     def to_internal_value(self, data):
 
         if data in (None, ""):

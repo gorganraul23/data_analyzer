@@ -1,177 +1,74 @@
 import math
 import numpy as np
+import pyhrv.time_domain as td
+import pyhrv.frequency_domain as fd
+import pyhrv.nonlinear as nl
 
-# def _safe_std(x):
-#     x = np.asarray(x, dtype=float)
-#     return float(np.std(x, ddof=1)) if x.size > 1 else float("nan")
-#
-# def _rmssd(rr):
-#     rr = np.asarray(rr, dtype=float)
-#     if rr.size < 2: return float("nan")
-#     diff = np.diff(rr)
-#     return float(np.sqrt(np.mean(diff*diff)))
-#
-# def _pnn50(rr):
-#     rr = np.asarray(rr, dtype=float)
-#     if rr.size < 2: return float("nan")
-#     diff = np.abs(np.diff(rr))
-#     return float(100.0 * np.mean(diff > 50.0))
-#
-# def _sd1_sd2(rr):
-#     sdnn = _safe_std(rr)
-#     rmssd = _rmssd(rr)
-#     sd1 = math.sqrt(0.5) * rmssd if not math.isnan(rmssd) else float("nan")
-#     term = 2*(sdnn**2) - 0.5*(rmssd**2) if not math.isnan(sdnn) and not math.isnan(rmssd) else float("nan")
-#     sd2 = math.sqrt(max(term, 0.0)) if not math.isnan(term) else float("nan")
-#     ratio = (sd2/sd1) if (sd1 and not math.isnan(sd1) and sd1 != 0 and not math.isnan(sd2)) else float("nan")
-#     return sd1, sd2, ratio, sdnn, rmssd
-#
-def _stress_index(rr, bin_ms=50.0):
+############################################################### pyhrv lib
 
+def compute_rmssd_lib(rr_list):
+    results = td.rmssd(rr_list)
+    return results['rmssd']
 
-    rmin, rmax = float(np.min(rr)), float(np.max(rr))
-    if rmax <= rmin: return float("nan")
-    bins = np.arange(rmin, rmax + bin_ms, bin_ms)
-    hist, edges = np.histogram(rr, bins=bins)
-    if hist.sum() == 0: return float("nan")
-    idx = int(np.argmax(hist))
-    Amo = 100.0 * hist[idx] / float(rr.size)       # %
-    Mo  = 0.5*(edges[idx] + edges[idx+1])          # ms
-    Var = rmax - rmin                               # ms
-    denom = 2.0 * Mo * Var
-    return float(Amo/denom) if denom > 0 else float("nan")
-#
-# def _tinn(rr, bin_ms=7.8125):
-#     rr = np.asarray(rr, dtype=float)
-#     if rr.size < 3: return float("nan")
-#     rmin, rmax = float(np.min(rr)), float(np.max(rr))
-#     bins = np.arange(rmin, rmax + bin_ms, bin_ms)
-#     hist, edges = np.histogram(rr, bins=bins)
-#     if hist.size < 3: return float("nan")
-#     peak = int(np.argmax(hist))
-#     thr = 0.05 * hist[peak]  # 5% of peak
-#     # left:
-#     left = peak
-#     while left > 0 and hist[left] > thr:
-#         left -= 1
-#     # right:
-#     right = peak
-#     while right < hist.size-1 and hist[right] > thr:
-#         right += 1
-#     return float(edges[min(right, len(edges)-1)] - edges[max(left, 0)])
-#
-# def _fft_psd(rr_s, fs=4.0):
-#     # rr_s = RR in seconds, resampled uniformly at fs
-#     x = np.asarray(rr_s, dtype=float)
-#     n = x.size
-#     if n < 16: return None, None
-#     x = x - np.mean(x)
-#     win = np.hanning(n)
-#     xw = x * win
-#     X = np.fft.rfft(xw)
-#     freqs = np.fft.rfftfreq(n, d=1.0/fs)
-#     psd = (np.abs(X)**2) / (np.sum(win**2) * fs)
-#     return freqs, psd
-#
-# def _lf_hf(rr):
-#     # very simple tachogram resample @ 4 Hz using cumulative time linear interpolation
-#     rr = np.asarray(rr, dtype=float)
-#     if rr.size < 4: return float("nan"), float("nan"), float("nan")
-#     t = np.cumsum(rr) / 1000.0
-#     t -= t[0]
-#     if t[-1] <= 1.0: return float("nan"), float("nan"), float("nan")
-#     fs = 4.0
-#     ti = np.arange(0.0, t[-1], 1.0/fs)
-#     # linear interpolation of rr (seconds)
-#     rr_s = np.interp(ti, t, rr/1000.0)
-#     f, p = _fft_psd(rr_s, fs=fs)
-#     if f is None: return float("nan"), float("nan"), float("nan")
-#     def band_power(f1, f2):
-#         mask = (f >= f1) & (f <= f2)
-#         if not np.any(mask): return float("nan")
-#         return float(np.trapz(p[mask], f[mask]))
-#     lf = band_power(0.04, 0.15)
-#     hf = band_power(0.15, 0.40)
-#     ratio = (lf/hf) if (hf and not math.isnan(hf) and hf > 0) else float("nan")
-#     return lf, hf, ratio
-#
-# def _apen(x, m=2, r=None):
-#     x = np.asarray(x, dtype=float)
-#     n = x.size
-#     if n <= m+1: return float("nan")
-#     if r is None:
-#         r = 0.2 * np.std(x, ddof=1) if n > 1 else float("nan")
-#     if r == 0 or math.isnan(r): return float("nan")
-#     def _phi(mm):
-#         N = n - mm + 1
-#         if N <= 1: return float("nan")
-#         emb = np.array([x[i:i+mm] for i in range(N)])
-#         C = []
-#         for i in range(N):
-#             d = np.max(np.abs(emb - emb[i]), axis=1)
-#             C.append(np.mean(d <= r))
-#         c = np.mean(C)
-#         return c if c > 0 else 1e-12
-#     return float(-np.log(_phi(m+1) / _phi(m)))
-#
-# def _sampen(x, m=2, r=None):
-#     x = np.asarray(x, dtype=float)
-#     n = x.size
-#     if n <= m+1: return float("nan")
-#     if r is None:
-#         r = 0.2 * np.std(x, ddof=1) if n > 1 else float("nan")
-#     if r == 0 or math.isnan(r): return float("nan")
-#     def _count(mm):
-#         N = n - mm + 1
-#         if N <= 1: return 0, 1  # avoid zero divide
-#         emb = np.array([x[i:i+mm] for i in range(N)])
-#         A = 0; B = 0
-#         for i in range(N-1):
-#             d = np.max(np.abs(emb[i+1:] - emb[i]), axis=1)
-#             B += np.sum(d <= r)
-#         # m+1
-#         if mm+1 <= n:
-#             N2 = n - (mm+1) + 1
-#             emb2 = np.array([x[i:i+mm+1] for i in range(N2)])
-#             for i in range(N2-1):
-#                 d = np.max(np.abs(emb2[i+1:] - emb2[i]), axis=1)
-#                 A += np.sum(d <= r)
-#         return A, B if B>0 else (A, 1)
-#     A, B = _count(m)
-#     return float(-np.log(A/B)) if A>0 and B>0 else float("nan")
-#
-# def _dfa(rr, scales):
-#     x = np.asarray(rr, dtype=float)
-#     n = x.size
-#     if n < max(scales, default=0): return float("nan")
-#     x = x - np.mean(x)
-#     y = np.cumsum(x - np.mean(x))
-#     F = []
-#     valid_scales = []
-#     for s in scales:
-#         if s < 2 or n < s: continue
-#         # segment into non-overlapping windows
-#         Ns = n // s
-#         if Ns < 2: continue
-#         rms = []
-#         for k in range(Ns):
-#             seg = y[k*s:(k+1)*s]
-#             t = np.arange(s)
-#             # linear detrend
-#             p = np.polyfit(t, seg, 1)
-#             trend = np.polyval(p, t)
-#             rms.append(np.sqrt(np.mean((seg - trend)**2)))
-#         if len(rms) > 0 and np.all(np.isfinite(rms)):
-#             F.append(np.mean(rms))
-#             valid_scales.append(s)
-#     if len(F) < 2: return float("nan")
-#     logF = np.log(F); logS = np.log(valid_scales)
-#     a, _ = np.polyfit(logS, logF, 1)
-#     return float(a)
+def compute_sdnn_lib(rr_list):
+    results = td.sdnn(rr_list)
+    return results['sdnn']
 
+def compute_hr_mean_std_lib(rr_list):
+    results = td.hr_parameters(rr_list)
+    return {
+        'mean': results['hr_mean'],
+        'std': results['hr_std'],
+    }
 
+def compute_rr_mean_lib(rr_list):
+    results = td.nni_parameters(rr_list)
+    return {
+        'mean': results['nni_mean'],
+        'std': abs(results['nni_max'] - results['nni_min']),
+    }
 
-### try 2
+def compute_nn50_lib(rr_list):
+    results = td.nn50(rr_list)
+    return results['nn50']
+
+def compute_pnn50_lib(rr_list):
+    results = td.time_domain(rr_list, plot=False, show=False)
+    return results['pnn50']
+
+def compute_tinn_lib(rr_list):
+    results = td.tinn(rr_list, plot=False, show=False)
+    return results['tinn']
+
+def compute_ftt_lib(rr_list):
+    res = fd.welch_psd(nni=rr_list, show=False)
+    vlf, lf, hf = res['fft_abs']
+    return {
+        'lf': float(lf),
+        'hf': float(hf),
+        'ratio': float(res['fft_ratio']),
+    }
+
+def compute_sd_lib(rr_list):
+    results = nl.poincare(rr_list, show=False)
+    return {
+        'sd1': results['sd1'],
+        'sd2': results['sd2'],
+        'ratio': results['sd_ratio'],
+    }
+
+def compute_sampen_lib(rr_list):
+    results = nl.sample_entropy(rr_list)
+    return results['sampen']
+
+def compute_dfa_lib(rr_list):
+    results = nl.dfa(rr_list, show=False)
+    return {
+        'dfa_a1': results['dfa_alpha1'],
+        'dfa_a2': results['dfa_alpha2'],
+    }
+
+############################################################### manual formulas
 
 # --------- Helpers ---------
 
@@ -183,7 +80,11 @@ def clean_rr_list(ibi_ms):
 
     return rr
 
-# --------- For SD computation ---------
+def _safe_std(x):
+    x = np.asarray(x, dtype=float)
+    return float(np.std(x, ddof=1)) if x.size > 1 else float("nan")
+
+# --------- Helpers for SD computation ---------
 
 try:
     from numpy.lib.stride_tricks import sliding_window_view
@@ -200,7 +101,7 @@ except Exception:
             return None
         return np.array([x[i:i+m] for i in range(n - m + 1)])
 
-# --------- For frequency domain ---------
+# --------- Helpers for frequency domain ---------
 
 try:
     from scipy.interpolate import interp1d as _interp1d
@@ -213,7 +114,6 @@ except Exception:
     _scipy_welch = None
 
 def _tol(x, r):
-    """Resolve r: if None -> 0.2 * SD(x) (ddof=1)."""
     if r is not None:
         return float(r)
     if x.size < 2:
@@ -224,6 +124,7 @@ def _tol(x, r):
 # --------- Parameters computing ---------
 
 # --------- Time domain ---------
+
 def compute_mean_hr(rr_list):
     return 60 * 1000 / np.mean(rr_list)
 
@@ -252,16 +153,7 @@ def compute_pnn50(rr_list, threshold_ms=50.0):
     return 100 * compute_nn50(rr_list, threshold_ms) / len(rr_list)
 
 def compute_tinn(rr_list, bin_ms=7.8125, peak_frac=0.05):
-    """
-    TINN (approx.): width of the base of a triangle fitted to the RR histogram.
-    Pragmatic approximation:
-      1) Build histogram with bin width ~7.8125 ms (Kubios-like)
-      2) Find the peak bin
-      3) Walk left/right until the histogram falls below peak_frac * peak
-      4) Base width = right_edge - left_edge  (ms)
 
-    Returns float(ms) or NaN if insufficient data.
-    """
     if rr_list.size < 3:
         return float("nan")
     rmin, rmax = float(np.min(rr_list)), float(np.max(rr_list))
@@ -294,22 +186,15 @@ def compute_tinn(rr_list, bin_ms=7.8125, peak_frac=0.05):
 
     return float(width if width > 0 else float("nan"))
 
+
 # --------- SD ---------
 def compute_sd1(rr_list):
-    """
-    SD1 from Poincaré plot = std( (RR_{i+1} - RR_i)/sqrt(2) ), sample std (ddof=1).
-    Returns float(ms) or NaN.
-    """
     if rr_list.size < 2:
         return float("nan")
     u = (rr_list[1:] - rr_list[:-1]) / math.sqrt(2.0)
     return float(np.std(u, ddof=1)) if u.size > 1 else float("nan")
 
 def compute_sd2(rr_list):
-    """
-    SD2 from Poincaré plot = std( (RR_{i+1} + RR_i)/sqrt(2) ), sample std (ddof=1).
-    Returns float(ms) or NaN.
-    """
     if rr_list.size < 2:
         return float("nan")
     v = (rr_list[1:] + rr_list[:-1]) / math.sqrt(2.0)
@@ -333,7 +218,6 @@ def compute_sd2_sd1_from_rmssd_sdnn(rr_list):
     _sd1 = compute_sd1(rr_list)
     _sd2 = compute_sd2(rr_list)
     return float(_sd2 / _sd1) if (_sd1 and not math.isnan(_sd1) and _sd1 != 0 and not math.isnan(_sd2)) else float("nan")
-
 
 # ----- Approximate Entropy (ApEn) -----
 
@@ -461,13 +345,10 @@ def dfa_alpha(rr_list, scales, bidirectional=True):
     return float(alpha)
 
 def compute_dfa_a1(rr_list):
-    """Short-term fractal scaling exponent α1 (typically 4–16 beats)."""
     return dfa_alpha(rr_list, scales=range(4, 17), bidirectional=True)
 
 def compute_dfa_a2(rr_list):
-    """Long-term fractal scaling exponent α2 (typically 16–64 beats)."""
     return dfa_alpha(rr_list, scales=range(16, 65), bidirectional=True)
-
 
 # ----- Stress Index -----
 
@@ -480,11 +361,6 @@ def _hist_edges_ms(rr, bin_ms):
     return edges
 
 def baevsky_stress_index(rr_list, bin_ms=50.0):
-    """
-    AMo% from RR histogram with bin width `bin_ms` (ms),
-    Mo in seconds, MxDMn in seconds.
-    Returns Baevsky SI.
-    """
     if rr_list.size < 2: return float('nan')
     edges = _hist_edges_ms(rr_list, bin_ms)
     hist, edges = np.histogram(rr_list, bins=edges)
@@ -499,43 +375,16 @@ def baevsky_stress_index(rr_list, bin_ms=50.0):
     denom = 2.0 * Mo_s * rng_s
     return float(Amo_pct / denom) if denom > 0 else float('nan')
 
-def kubios_stress_index(rr_ms, bin_ms=50.0):
-    """Kubios-style index = sqrt(Baevsky SI)."""
+def compute_stress_index(rr_ms, bin_ms=50.0):
     si = baevsky_stress_index(rr_ms, bin_ms=bin_ms)
     return math.sqrt(si) if si > 0 else float('nan')
-
 
 # --------- PNS SNS Index ---------
 
 def _z(x, mu, sigma):
     return (x - mu) / sigma if (x is not None and math.isfinite(x) and sigma and math.isfinite(sigma)) else float("nan")
 
-def kubios_style_pns_sns(rr_list, norms=None, weights=None):
-    """
-    rr_ms: list/array of IBI in milliseconds
-    norms: dict of normal means/sds (age/sex matched if possible), e.g.
-        norms = {
-          'mean_rr':  {'mu': 900.0, 'sd': 120.0},
-          'rmssd':    {'mu': 42.0,  'sd': 20.0},
-          'sd1_pct':  {'mu': 5.0,   'sd': 2.0},
-          'mean_hr':  {'mu': 66.0,  'sd': 10.0},
-          'stress':   {'mu': 9.5,   'sd': 2.0},   # this is sqrt(Baevsky SI)
-          'sd2_pct':  {'mu': 7.5,   'sd': 3.0},
-        }
-    weights (optional): {'pns': {'rr':..,'rmssd':..,'sd1pct':..}, 'sns': {'hr':..,'stress':..,'sd2pct':..}}
-                        Defaults to equal weights.
-    Returns: (PNS_index, SNS_index) ~ z-score style (0≈normal, ±1≈1 SD).
-    """
-    norms = {
-        'mean_rr': {'mu': 600.0, 'sd': 140.0},
-        'rmssd': {'mu': 200.0, 'sd': 60.5},
-        'sd1_pct': {'mu': 130.0, 'sd': 20.0},
-        'mean_hr': {'mu': 85.0, 'sd': 10.0},
-        'stress': {'mu': 6.5, 'sd': 1.3},  # this is sqrt(Baevsky SI)
-        'sd2_pct': {'mu': 140.5, 'sd': 40.0},
-    }
-    #rr = np.asarray(rr_ms, dtype=float)
-    #rr = rr[np.isfinite(rr)]
+def compute_pns_sns(rr_list, norms=None, weights=None):
     if rr_list.size < 3:
         return float("nan"), float("nan")
 
@@ -544,7 +393,7 @@ def kubios_style_pns_sns(rr_list, norms=None, weights=None):
     sd1 = compute_sd1(rr_list)
     sd2 = compute_sd2(rr_list)
     rmssd = compute_rmssd(rr_list)
-    stress = kubios_stress_index(rr_list)
+    stress = compute_stress_index(rr_list)
 
     # normalize SD1, SD2 by mean RR to get SD1(%), SD2(%)
     sd1_pct = float(100.0 * sd1 / mean_rr) if (math.isfinite(sd1) and mean_rr > 0) else float("nan")
@@ -571,10 +420,6 @@ def kubios_style_pns_sns(rr_list, norms=None, weights=None):
 # --------- Frequency domain ---------
 
 def resample_rr_tachogram_ms(rr_list, fs=4.0, kind="cubic"):
-    """
-    Uneven RR (ms) -> evenly sampled tachogram (ms) at fs Hz.
-    Returns (t_uniform_seconds, rr_uniform_ms). If insufficient data -> (None, None)
-    """
     if rr_list.size < 3:
         return None, None
 
@@ -601,9 +446,6 @@ def resample_rr_tachogram_ms(rr_list, fs=4.0, kind="cubic"):
     return tu, rr_u
 
 def welch_psd_ms(rr_uniform_ms, fs=4.0, nperseg=256, noverlap=128):
-    """
-    Welch PSD of the tachogram (RR in ms). Returns (freqs Hz, PSD in ms²/Hz).
-    """
     x = np.asarray(rr_uniform_ms, dtype=float)
     n = x.size
     if n < 16:
@@ -650,9 +492,6 @@ def compute_frequency_domain_metrics(rr_list, fs=4.0,
                            vlf_band=(0.00, 0.04),
                            lf_band=(0.04, 0.15),
                            hf_band=(0.15, 0.40)):
-    """
-    Returns VLF, LF, HF (ms²) and LF/HF ratio.
-    """
     tu, rr_u = resample_rr_tachogram_ms(rr_list, fs=fs)
     if rr_u is None:
         return {"vlf": float("nan"), "lf": float("nan"), "hf": float("nan"), "lf_hf": float("nan")}
@@ -671,32 +510,17 @@ def compute_frequency_domain_metrics(rr_list, fs=4.0,
 
 # --------- Main ---------
 
-def compute_metrics_from_ibi_ms(ibi_list):
+def compute_metrics_from_ibi_list(ibi_list):
 
     rr = clean_rr_list(ibi_list)
 
     if rr.size < 3:
         return {
-            "mean_hr": float("nan"),
-            "mean_rr": float("nan"),
-            "rmssd": float("nan"),
-            "sdnn": float("nan"),
-            "stress_index": float("nan"),
-            "pns_index": float("nan"),
-            "sns_index": float("nan"),
-            "nn50": float("nan"),
-            "pnn50": float("nan"),
-            "tinn": float("nan"),
-            "lf": float("nan"),
-            "hf": float("nan"),
-            "lf_hf": float("nan"),
-            "sd1": float("nan"),
-            "sd2": float("nan"),
-            "sd2_sd1": float("nan"),
-            "ap_en": float("nan"),
-            "samp_en": float("nan"),
-            "dfa_a1": float("nan"),
-            "dfa_a2": float("nan"),
+            "mean_hr": float("nan"), "mean_rr": float("nan"), "rmssd": float("nan"), "sdnn": float("nan"), "stress_index": float("nan"),
+            "pns_index": float("nan"), "sns_index": float("nan"), "nn50": float("nan"), "pnn50": float("nan"), "tinn": float("nan"),
+            "lf": float("nan"), "hf": float("nan"), "lf_hf": float("nan"),
+            "sd1": float("nan"), "sd2": float("nan"), "sd2_sd1": float("nan"),
+            "ap_en": float("nan"), "samp_en": float("nan"), "dfa_a1": float("nan"), "dfa_a2": float("nan"),
         }
 
     mean_hr = compute_mean_hr(rr)
@@ -707,9 +531,7 @@ def compute_metrics_from_ibi_ms(ibi_list):
     pnn50 = compute_pnn50(rr)
     tinn = compute_tinn(rr)
 
-    stress_index = kubios_stress_index(rr)
-    #stress_index = _stress_index(rr)
-    pns_index, sns_index = kubios_style_pns_sns(rr_list=rr, norms={})
+    stress_index = compute_stress_index(rr)
 
     freq = compute_frequency_domain_metrics(rr, fs=4.0)
     lf_power = freq["lf"]
@@ -723,11 +545,97 @@ def compute_metrics_from_ibi_ms(ibi_list):
     # sd2 = compute_sd2_from_sdnn_rmssd(rr)
     # sd2_sd1 = compute_sd2_sd1_from_rmssd_sdnn(rr)
 
+    hr_results = compute_hr_mean_std_lib(rr)
+    mean_hr_lib = hr_results["mean"]
+    std_hr_lib = hr_results["std"]
+    rr_results = compute_rr_mean_lib(rr)
+    mean_rr_lib = rr_results["mean"]
+    std_rr_lib = rr_results["std"]
+    norms = {
+        'mean_rr': {'mu': mean_rr_lib, 'sd': std_rr_lib},
+        'rmssd': {'mu': rmssd, 'sd': 60.5},
+        'sd1_pct': {'mu': sd1, 'sd': 20.0},
+        'mean_hr': {'mu': mean_hr_lib, 'sd': std_hr_lib},
+        'stress': {'mu': stress_index, 'sd': 2},
+        'sd2_pct': {'mu': sd2, 'sd': 40.0},
+    }
+    pns_index, sns_index = compute_pns_sns(rr_list=rr, norms=norms)
+
     ap_en = compute_ap_en(rr, m=2)
     samp_en = compute_samp_en(rr, m=2)
 
     dfa_a1 = compute_dfa_a1(rr)
     dfa_a2 = compute_dfa_a2(rr)
+
+    return {
+        "mean_hr": mean_hr,
+        "mean_rr": mean_rr,
+        "rmssd": rmssd,
+        "sdnn": sdnn,
+        "stress_index": stress_index,
+        "pns_index": pns_index,
+        "sns_index": sns_index,
+        "nn50": nn50,
+        "pnn50": pnn50,
+        "tinn": tinn,
+        "lf": lf_power,
+        "hf": hf_power,
+        "lf_hf": lf_hf,
+        "sd1": sd1,
+        "sd2": sd2,
+        "sd2_sd1": sd2_sd1,
+        "ap_en": ap_en,
+        "samp_en": samp_en,
+        "dfa_a1": dfa_a1,
+        "dfa_a2": dfa_a2,
+    }
+
+def compute_metrics_from_ibi_list_lib(ibi_list):
+
+    rr = clean_rr_list(ibi_list)
+
+    if rr.size < 3:
+        return {
+            "mean_hr": float("nan"), "mean_rr": float("nan"), "rmssd": float("nan"), "sdnn": float("nan"), "stress_index": float("nan"),
+            "pns_index": float("nan"), "sns_index": float("nan"), "nn50": float("nan"), "pnn50": float("nan"), "tinn": float("nan"),
+            "lf": float("nan"), "hf": float("nan"), "lf_hf": float("nan"),
+            "sd1": float("nan"), "sd2": float("nan"), "sd2_sd1": float("nan"),
+            "ap_en": float("nan"), "samp_en": float("nan"), "dfa_a1": float("nan"), "dfa_a2": float("nan"),
+        }
+
+    rmssd = compute_rmssd_lib(rr)
+    sdnn = compute_sdnn_lib(rr)
+    tinn = compute_tinn_lib(rr)
+    nn50 = compute_nn50_lib(rr)
+    pnn50 = compute_pnn50_lib(rr)
+
+    hr_results = compute_hr_mean_std_lib(rr)
+    mean_hr = hr_results["mean"]
+    std_hr = hr_results["std"]
+
+    rr_results = compute_rr_mean_lib(rr)
+    mean_rr = rr_results["mean"]
+    std_rr = rr_results["std"]
+
+    stress_index = 0
+    pns_index, sns_index = 0, 0
+
+    ftt_results = compute_ftt_lib(rr)
+    lf_power = ftt_results["lf"]
+    hf_power = ftt_results["hf"]
+    lf_hf = ftt_results["ratio"]
+
+    sd_results = compute_sd_lib(rr)
+    sd1 = sd_results["sd1"]
+    sd2 = sd_results["sd2"]
+    sd2_sd1 = sd_results["ratio"]
+
+    ap_en = 0
+    samp_en = compute_sampen_lib(rr)
+
+    dfa_results = compute_dfa_lib(rr)
+    dfa_a1 = dfa_results["dfa_a1"]
+    dfa_a2 = dfa_results["dfa_a2"]
 
     return {
         "mean_hr": mean_hr,
