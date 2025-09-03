@@ -16,7 +16,7 @@
 	th, td { border: 1px solid #e5e5e5; padding: 8px 10px; text-align: left; }
 	th { background: #fafafa; }
 	.btn { display: inline-block; padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; color: #222; text-decoration: none; border-radius: 8px; cursor: pointer; font: inherit; line-height: 1; -webkit-appearance: none; appearance: none; }
-    .search-btn { background: #4da6ff; margin-right: 4px; margin-left: 4px; }
+    .search-btn { margin-right: 4px; margin-left: 4px; background: #0033cc; color: #FFFFFF; }
     .page-header { display: flex; align-items: center; gap: 12px; }
     .highlight-row { background-color: #e6f2ff; }
     .form-row { display: flex; align-items: flex-end; gap: 20px; }
@@ -91,7 +91,7 @@
               <td>{{ r.mean_rr|floatformat:2 }}</td>
               <td>{{ r.rmssd|floatformat:3 }}</td>
               <td>{{ r.sdnn|floatformat:3 }}</td>
-              <td>{{ r.nn50|floatformat:3 }}</td>
+              <td>{{ r.nn50|floatformat:0 }}</td>
               <td>{{ r.pnn50|floatformat:3 }}</td>
               <td>{{ r.tinn|floatformat:3 }}</td>
               <td>{{ r.stress_index|floatformat:2 }}</td>
@@ -154,7 +154,7 @@
               <td>{{ r.mean_rr|floatformat:2 }}</td>
               <td>{{ r.rmssd|floatformat:3 }}</td>
               <td>{{ r.sdnn|floatformat:3 }}</td>
-              <td>{{ r.nn50|floatformat:3 }}</td>
+              <td>{{ r.nn50|floatformat:0 }}</td>
               <td>{{ r.pnn50|floatformat:3 }}</td>
               <td>{{ r.tinn|floatformat:3 }}</td>
               <td>{{ r.stress_index|floatformat:2 }}</td>

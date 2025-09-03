@@ -1,0 +1,35 @@
+<head>
+  <meta charset="utf-8">
+  <title>Merge HRV CSVs</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; }
+    form { display: grid; gap: 16px; align-items: start; max-width: 600px; }
+    label { font-size: 14px; color: #444; }
+    input[type="file"] { padding: 6px; font-size: 13px; }
+    .btn { padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7;
+           cursor: pointer; border-radius: 8px; text-decoration: none; color: #222; }
+    .btn-primary { background: #4da6ff; color: white; border: none; }
+    .error { color: red; margin-top: 10px; }
+	.btn { display: inline-block; padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; color: #222; text-decoration: none; border-radius: 8px; cursor: pointer; font: inherit; line-height: 1; -webkit-appearance: none; appearance: none; }
+    .btn-download { width: 40%; background: #0033cc; color: #FFFFFF; }
+    .page-header { display: flex; align-items: center; gap: 12px; }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+	  <a class="btn" href="{% url 'data_index' %}">Back</a>
+	  <h1>Merge HRV Metrics CSVs</h1>
+  </div>
+
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div>
+      <label for="files">Upload Multiple HRV Metrics CSVs:</label>
+      <input type="file" id="files" name="files" accept=".csv" multiple required>
+    </div>
+    <button class="btn btn-download" type="submit">Download Merged CSV</button>
+  </form>
+
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+</body>

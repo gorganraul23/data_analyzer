@@ -464,3 +464,32 @@ def hrv_interpretation_page(request):
             results.append(r)
 
     return render(request, "hrv_interpretation.html", {"results": results, "error": error})
+
+
+# --------- CSV Merging page ---------
+
+def merge_csv_page(request):
+    error = None
+    merged_df = None
+
+    if request.method == "POST" and request.FILES.getlist("files"):
+        files = request.FILES.getlist("files")
+        dfs = []
+        for f in files:
+            try:
+                df = pd.read_csv(f)
+                dfs.append(df)
+            except Exception as e:
+                error = f"Failed to read {f.name}: {e}"
+                return render(request, "merge_csv.html", {"error": error})
+
+        if dfs:
+            merged_df = pd.concat(dfs, ignore_index=True)
+
+            # Create response for download
+            resp = HttpResponse(content_type="text/csv")
+            resp["Content-Disposition"] = 'attachment; filename="merged_hrv_metrics.csv"'
+            merged_df.to_csv(resp, index=False)
+            return resp
+
+    return render(request, "merge_csv.html", {"error": error})

@@ -15,7 +15,7 @@
 	th, td { border: 1px solid #e5e5e5; padding: 8px 10px; text-align: left; }
 	th { background: #fafafa; }
 	.btn { display: inline-block; padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; color: #222; text-decoration: none; border-radius: 8px; cursor: pointer; font: inherit; line-height: 1; -webkit-appearance: none; appearance: none; }
-    .search-btn { background: #4da6ff; margin-left: 4px; }
+    .search-btn { margin-left: 4px; background: #0033cc; color: #FFFFFF; }
     .page-header { display: flex; align-items: center; gap: 12px; }
     .highlight-row { background-color: #e6f2ff; }
     input[type="file"] { padding: 6px; font-size: 13px; }
@@ -82,7 +82,7 @@
               <td style="{{ r.styles.mean_rr|default:'' }}">{{ r.mean_rr|floatformat:2 }}</td>
               <td style="{{ r.styles.rmssd|default:'' }}">{{ r.rmssd|floatformat:3 }}</td>
               <td style="{{ r.styles.sdnn|default:'' }}">{{ r.sdnn|floatformat:3 }}</td>
-              <td style="{{ r.styles.nn50|default:'' }}">{{ r.nn50|floatformat:3 }}</td>
+              <td style="{{ r.styles.nn50|default:'' }}">{{ r.nn50|floatformat:0 }}</td>
               <td style="{{ r.styles.pnn50|default:'' }}">{{ r.pnn50|floatformat:3 }}</td>
               <td style="{{ r.styles.tinn|default:'' }}">{{ r.tinn|floatformat:3 }}</td>
               <td style="{{ r.styles.lf|default:'' }}">{{ r.lf|floatformat:3 }}</td>
