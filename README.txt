@@ -23,7 +23,7 @@ II. USE
         - choose the activity types you want. It's a LIKE in SQL, comma separated (e.g. 'emotion,delay'), leave empty for all
         - choose the minimum count of valid IBI values (usually 120), -1 for no minimum limit
         - choose the rows count limit, -1 default (all)
-        - see the results in the table
+        - search and see the results in the table
         - UNDER THE INPUTS, YOU HAVE THE ACTIVITY IDS AND YOU CAN COPY THEM FOR THE NEXT PAGE.
 
 5. Open next page - Sensor Heart Rate
@@ -43,16 +43,22 @@ II. USE
         if both are checked, both tables will be completed.
     - when click on Compute and Download: if only Include Custom is checked, custom results are downloaded,
         else, PhHRV results are downloaded
-    -STEPS:
+    STEPS:
         - UPLOAD THE PREVIOUS GENERATED CSV
         - Compute and View - only to see the results
         - COMPUTE AND DOWNLOAD - to download the CSV with the results
 
-7. See the interpretation of the results in Interpretation page
+7. Interpretation page
     - here you can see the differences between relax and cognitive tasks
     - with green - the transition is good (increase / decrease)
     - with red - the transition is not as expected
-    -STEPS:
+    STEPS:
         - Upload the previous CSV with the results
         - View - to only view the results again
         - View and Analyze - to start the analysis
+
+8. Merge CSV page
+    - here you can merge all HRV metrics CSVs into one to be used in the AI model or to analyze the data easier
+    STEPS:
+        - upload all CSVs you want to merge
+        - download the merged CSV
