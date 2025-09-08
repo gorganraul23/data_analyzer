@@ -53,10 +53,15 @@
             <th>Mean HR</th>
             <th>Mean RR</th>
             <th>RMSSD</th>
+            <th>RMSSD chunks</th>
             <th>SDNN</th>
+            <th>SDNN chunks</th>
             <th>NN50</th>
+            <th>NN50 chunks</th>
             <th>pNN50</th>
+            <th>pNN50 chunks</th>
             <th>TINN</th>
+            <th>TINN chunks</th>
             <th>LF</th>
             <th>HF</th>
             <th>LF / HF</th>
@@ -81,10 +86,15 @@
               <td style="{{ r.styles.mean_hr|default:'' }}">{{ r.mean_hr|floatformat:2 }}</td>
               <td style="{{ r.styles.mean_rr|default:'' }}">{{ r.mean_rr|floatformat:2 }}</td>
               <td style="{{ r.styles.rmssd|default:'' }}">{{ r.rmssd|floatformat:3 }}</td>
+              <td style="{{ r.styles.rmssd_chunks|default:'' }}">{{ r.rmssd_chunks|floatformat:3 }}</td>
               <td style="{{ r.styles.sdnn|default:'' }}">{{ r.sdnn|floatformat:3 }}</td>
+              <td style="{{ r.styles.sdnn_chunks|default:'' }}">{{ r.sdnn_chunks|floatformat:3 }}</td>
               <td style="{{ r.styles.nn50|default:'' }}">{{ r.nn50|floatformat:0 }}</td>
+              <td style="{{ r.styles.nn50_chunks|default:'' }}">{{ r.nn50_chunks|floatformat:0 }}</td>
               <td style="{{ r.styles.pnn50|default:'' }}">{{ r.pnn50|floatformat:3 }}</td>
+              <td style="{{ r.styles.pnn50_chunks|default:'' }}">{{ r.pnn50_chunks|floatformat:3 }}</td>
               <td style="{{ r.styles.tinn|default:'' }}">{{ r.tinn|floatformat:3 }}</td>
+              <td style="{{ r.styles.tinn_chunks|default:'' }}">{{ r.tinn_chunks|floatformat:3 }}</td>
               <td style="{{ r.styles.lf|default:'' }}">{{ r.lf|floatformat:3 }}</td>
               <td style="{{ r.styles.hf|default:'' }}">{{ r.hf|floatformat:3 }}</td>
               <td style="{{ r.styles.lf_hf|default:'' }}">{{ r.lf_hf|floatformat:3 }}</td>
@@ -101,7 +111,7 @@
             </tr>
           {% endfor %}
         {% else %}
-          <tr><td colspan="22">No rows displayed.</td></tr>
+          <tr><td colspan="28">No rows displayed.</td></tr>
         {% endif %}
       </tbody>
     </table>

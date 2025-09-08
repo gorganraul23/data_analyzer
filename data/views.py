@@ -12,9 +12,10 @@ from .models import SensorHeartRate, Student, Session, Activity
 from .serializers import SensorHeartRateSerializer, StudentSerializer, SessionSerializer, ActivitySerializer, \
     StudentActivitiesSerializer, SensorHeartRateActivitiesSerializer
 from .utils.date_converter import EpochMsDateTimeField
-from .utils.hrv import compute_metrics_from_ibi_list, compute_metrics_from_ibi_list_lib
+from .utils.hrv import compute_metrics_from_ibi_list, compute_metrics_from_ibi_list_lib, compute_metrics_from_hr_list
 from .utils.parsers import parse_bool, excel_text
 
+from openpyxl import Workbook
 
 
 # --------- Get All - for test ---------
@@ -266,18 +267,48 @@ def sensor_heart_rate_activities_page(request):
         return resp
 
     # processed CSV download
-    if download_processed in ("1", "true", "yes", "on"):
-        headers = ["id", "activity_id", "session_id", "student_id", "value_ibi", "timestamp"]
-        resp = HttpResponse(content_type="text/csv")
-        fname = f"processed_sensor_heart_rate__act_{activity_ids_raw}.csv"
-        resp["Content-Disposition"] = f'attachment; filename="{fname}"'
-        w = csv.writer(resp)
-        w.writerow(headers)
+    # if download_processed == "1":
+    #     headers = ["id", "activity_id", "session_id", "student_id", "value_ibi", "timestamp"]
+    #     resp = HttpResponse(content_type="text/csv")
+    #     fname = f"processed_sensor_heart_rate__act_{activity_ids_raw}.csv"
+    #     resp["Content-Disposition"] = f'attachment; filename="{fname}"'
+    #     w = csv.writer(resp)
+    #     w.writerow(headers)
+    #
+    #     if qs is None:
+    #         qs = SensorHeartRate.objects.none()
+    #
+    #     fmt_ts = EpochMsDateTimeField().to_representation
+    #
+    #     for rec in qs:
+    #         base = [rec.id, rec.activity_id, rec.session_id, rec.student_id]
+    #         ts_str = fmt_ts(getattr(rec, "timestamp", None))
+    #         for i in range(4):
+    #             val = getattr(rec, f"value_ibi_{i}")
+    #             st = getattr(rec, f"status_ibi_{i}")
+    #             if st == 110 and val is not None:
+    #                 w.writerow(base + [val, excel_text(ts_str)])
+    #
+    #     return resp
 
-        if qs is None:
-            qs = SensorHeartRate.objects.none()
+    # processed CSV download
+    if download_processed == "1":
+        fname = f"processed_sensor_heart_rate__act_{activity_ids_raw}.xlsx"
+        resp = HttpResponse(
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        resp["Content-Disposition"] = f'attachment; filename="{fname}"'
+
+        wb = Workbook()
+
+        # --- Sheet 1: IBI values ---
+        ws1 = wb.active
+        ws1.title = "IBI"
+        ws1.append(["id", "activity_id", "session_id", "student_id", "value_ibi", "timestamp"])
 
         fmt_ts = EpochMsDateTimeField().to_representation
+        if qs is None:
+            qs = SensorHeartRate.objects.none()
 
         for rec in qs:
             base = [rec.id, rec.activity_id, rec.session_id, rec.student_id]
@@ -286,8 +317,21 @@ def sensor_heart_rate_activities_page(request):
                 val = getattr(rec, f"value_ibi_{i}")
                 st = getattr(rec, f"status_ibi_{i}")
                 if st == 110 and val is not None:
-                    w.writerow(base + [val, excel_text(ts_str)])
+                    ws1.append(base + [val, ts_str])
 
+        # --- Sheet 2: Heart rate values ---
+        ws2 = wb.create_sheet("HeartRate")
+        ws2.append(["id", "activity_id", "session_id", "student_id", "value_heart_rate", "timestamp"])
+
+        for rec in qs:
+            if rec.status_heart_rate == 10 and rec.value_heart_rate is not None:
+                ws2.append([
+                    rec.id, rec.activity_id, rec.session_id, rec.student_id,
+                    rec.value_heart_rate,
+                    fmt_ts(getattr(rec, "timestamp", None))
+                ])
+
+        wb.save(resp)
         return resp
 
     context = {
@@ -311,18 +355,32 @@ def hrv_metrics_page(request):
 
     if request.method == "POST" and request.FILES.get("file"):
         f = request.FILES["file"]
+        filename = f.name.lower()
 
         try:
-            df = pd.read_csv(f)
+            if filename.endswith(".csv"):
+                df = pd.read_csv(f)
+                df_hr = None
+            elif filename.endswith((".xls", ".xlsx")):
+                dfs = pd.read_excel(f, sheet_name=None)
+                df = dfs.get("IBI")
+                df_hr = dfs.get("HeartRate")
+            else:
+                raise ValueError("Unsupported file format. Upload CSV or XLSX.")
         except Exception as e:
-            error = f"Failed to read CSV: {e}"
-            return render(request, "hrv_metrics.html", {"error": error, "results": results, "results_lib": results_lib})
+            error = f"Failed to read file: {e}"
+            return render(request, "hrv_metrics.html", { "error": error, "results": results, "results_lib": results_lib })
 
         required_cols = {"id", "activity_id", "session_id", "student_id", "value_ibi"}
-        if not required_cols.issubset(set(df.columns)):
+        if df is None or not required_cols.issubset(set(df.columns)):
             missing = required_cols - set(df.columns)
             error = f"Missing required columns: {', '.join(missing)}"
             return render(request, "hrv_metrics.html", {"error": error, "results": results, "results_lib": results_lib})
+
+        # Prepare HR data if available
+        if df_hr is not None and "value_heart_rate" in df_hr.columns:
+            df_hr["activity_id"] = pd.to_numeric(df_hr["activity_id"], errors="coerce")
+            df_hr["value_heart_rate"] = pd.to_numeric(df_hr["value_heart_rate"], errors="coerce")
 
         # ensure numeric types
         df["activity_id"] = pd.to_numeric(df["activity_id"], errors="coerce")
@@ -339,10 +397,16 @@ def hrv_metrics_page(request):
 
         for act_id, g in df.groupby("activity_id", dropna=True):
             ibi_ms = g["value_ibi"].dropna().astype(float).values.tolist()
+            id_list = g["id"].dropna().astype(float).values.tolist()
             act_id_int = int(act_id) if pd.notna(act_id) else None
+
+            hr_values = []
+            if df_hr is not None:
+                hr_values = df_hr[df_hr["activity_id"] == act_id_int]["value_heart_rate"].dropna().astype(float).tolist()
 
             if include_custom:
                 metrics = compute_metrics_from_ibi_list(ibi_ms)
+                metrics.update(compute_metrics_from_hr_list(hr_values, ibi_ms))
                 row = {
                     "activity_id": act_id_int,
                     "activityType": act_types.get(act_id_int),
@@ -351,7 +415,8 @@ def hrv_metrics_page(request):
                 results.append(row)
 
             if include_lib:
-                metrics_lib = compute_metrics_from_ibi_list_lib(ibi_ms)
+                metrics_lib = compute_metrics_from_ibi_list_lib(ibi_ms, id_list)
+                metrics_lib.update(compute_metrics_from_hr_list(hr_values, ibi_ms))
                 row_lib = {
                     "activity_id": act_id_int,
                     "activityType": act_types.get(act_id_int),
@@ -368,7 +433,8 @@ def hrv_metrics_page(request):
         # CSV download
         if (request.POST.get("download") or "").lower() == "1":
             headers = ["activity_id", "activityType",
-                       "mean_hr", "mean_rr", "rmssd", "sdnn", "nn50", "pnn50", "tinn",
+                       "mean_hr", "mean_rr", "rmssd", "rmssd_chunks", "sdnn", "sdnn_chunks",
+                       "nn50", "nn50_chunks", "pnn50", "pnn50_chunks", "tinn", "tinn_chunks",
                        "stress_index", "pns_index", "sns_index",
                        "lf", "hf", "lf_hf",
                        "sd1", "sd2", "sd2_sd1",
@@ -422,7 +488,9 @@ def hrv_interpretation_page(request):
             return render(request, "hrv_interpretation.html", {"error": error, "results": results})
 
         required_cols = {"activity_id", "activityType",
-                         "mean_hr", "mean_rr", "rmssd", "sdnn", "nn50", "pnn50", "tinn",
+                         "mean_hr", "mean_rr",
+                         "rmssd", "sdnn", "nn50", "pnn50", "tinn",
+                         "rmssd_chunks", "sdnn_chunks", "nn50_chunks", "pnn50_chunks", "tinn_chunks",
                          "stress_index", "pns_index", "sns_index", "lf", "hf", "lf_hf",
                          "sd1", "sd2", "sd2_sd1", "ap_en", "samp_en", "dfa_a1", "dfa_a2"}
         if not required_cols.issubset(set(df.columns)):
@@ -439,7 +507,9 @@ def hrv_interpretation_page(request):
         analyzed = (request.POST.get("analyze") or "").lower() == "1"
 
         # expected directions
-        decrease_metrics = ["rmssd", "sdnn", "mean_rr", "nn50", "pnn50", "tinn",
+        decrease_metrics = ["mean_rr",
+                            "rmssd", "rmssd_chunks", "sdnn", "sdnn_chunks",
+                            "nn50", "nn50_chunks", "pnn50", "pnn50_chunks", "tinn", "tinn_chunks",
                             "lf", "hf", "sd1", "sd2", "sd2_sd1",
                             "ap_en", "samp_en", "dfa_a1", "dfa_a2", "pns_index"]
         increase_metrics = ["mean_hr", "lf_hf", "stress_index", "sns_index"]
