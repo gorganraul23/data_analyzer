@@ -46,10 +46,15 @@ def compute_nn50_lib(rr_list):
 
 # --------- pNN50 ---------
 def compute_pnn50_lib(rr_list):
-    results = td.time_domain(rr_list, plot=False, show=False)
-    if "plot" in results:
-        results.pop("plot", None)
-    return results['pnn50']
+    # print(rr_list)
+    # results = td.time_domain(rr_list, plot=False, show=False)
+    # if "plot" in results:
+    #     results.pop("plot", None)
+    # return results['pnn50']
+    if len(rr_list) < 2:
+        return float("nan")
+    return 100 * compute_nn50_lib(rr_list) / len(rr_list)
+
 
 # --------- TINN ---------
 def compute_tinn_lib(rr_list):
@@ -734,7 +739,7 @@ def compute_metrics_from_ibi_list_lib(ibi_list, id_list):
     nn50 = compute_nn50_lib(rr)
     nn50_chunks = compute_nn50_chunks_lib(chunks)
 
-    pnn50 = compute_pnn50_lib(rr)
+    pnn50 = compute_pnn50(rr)
     pnn50_chunks = compute_pnn50_chunks_lib(chunks)
 
     tinn = compute_tinn_lib(rr)

@@ -18,6 +18,8 @@ from .utils.parsers import parse_bool, excel_text
 from openpyxl import Workbook
 
 
+#<editor-fold desc="Get All - for test">
+
 # --------- Get All - for test ---------
 
 @api_view(['GET'])
@@ -48,11 +50,17 @@ def activity(request):
         activity_serializer = ActivitySerializer(data, many=True)
         return Response(activity_serializer.data)
 
+#</editor-fold>
+
+#<editor-fold desc="Index page">
 
 # --------- Index page ---------
 def data_index(request):
     return render(request, "data_index.html")
 
+#</editor-fold>
+
+#<editor-fold desc="Student - Activities page">
 
 # --------- Student - Activities page ---------
 
@@ -191,6 +199,9 @@ def student_activities_page(request):
     }
     return render(request, "student_activities.html", context)
 
+#</editor-fold>
+
+#<editor-fold desc="Sensor Heart Rate - Activities page">
 
 # --------- Sensor Heart Rate - Activities page ---------
 
@@ -343,14 +354,58 @@ def sensor_heart_rate_activities_page(request):
     }
     return render(request, "sensor_heart_rate_activities.html", context)
 
+#</editor-fold>
+
+#<editor-fold desc="HRV-Metrics page">
 
 # --------- HRV-Metrics page ---------
+
+def sliding_windows(data, window_size=120, step=30):
+    n = len(data)
+    if n == 0:
+        return
+    start = 0
+    while start + window_size <= n:
+        yield data[start:start + window_size]
+        start += step
+    # remainder
+    if start < n:
+        tail = data[-window_size:] if n >= window_size else data
+        yield tail
+
+def compute_windowed_metrics(act_id, act_type, ibi_list, id_list, hr_values=None, window_size=120, step=30):
+    rows = []
+    if len(ibi_list) < window_size:
+        return rows  # not enough data for one full window
+
+    for start in range(0, len(ibi_list) - window_size + 1, step):
+        end = start + window_size
+        ibi_window = ibi_list[start:end]
+        id_window = id_list[start:end]
+        hr_window = hr_values[start:end] if hr_values else []
+
+        print(start, end, len(ibi_window), len(id_window), len(hr_window))
+
+        metrics = compute_metrics_from_ibi_list_lib(ibi_window, id_window)
+        metrics.update(compute_metrics_from_hr_list(hr_window, ibi_window))
+
+        row = {
+            "activity_id": act_id,
+            "activityType": act_type,
+            "window_start": start + 1,
+            "window_end": end,
+            **{k: (None if pd.isna(v) else float(v)) for k, v in metrics.items()},
+        }
+        rows.append(row)
+
+    return rows
 
 @require_http_methods(["GET", "POST"])
 def hrv_metrics_page(request):
 
     results = []
     results_lib = []
+    results_lib_windows = []
     error = None
 
     if request.method == "POST" and request.FILES.get("file"):
@@ -394,6 +449,7 @@ def hrv_metrics_page(request):
         # parse checkboxes
         include_lib = request.POST.get("include_lib") == "1"
         include_custom = request.POST.get("include_custom") == "1"
+        include_window = request.POST.get("include_window") == "1"
 
         for act_id, g in df.groupby("activity_id", dropna=True):
             ibi_ms = g["value_ibi"].dropna().astype(float).values.tolist()
@@ -424,6 +480,10 @@ def hrv_metrics_page(request):
                 }
                 results_lib.append(row_lib)
 
+            # windowed metrics
+            windowed_rows = compute_windowed_metrics(act_id_int, act_types.get(act_id_int), ibi_ms, id_list, hr_values, window_size=120, step=30)
+            results_lib_windows.extend(windowed_rows)
+
         # sort by activity_id
         if include_custom:
             results.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
@@ -447,7 +507,9 @@ def hrv_metrics_page(request):
             w.writerow(headers)
 
             results_to_download = []
-            if include_custom and not include_lib:
+            if include_window:
+                results_to_download = results_lib_windows
+            elif include_custom and not include_lib:
                 results_to_download = results
             else:
                 results_to_download = results_lib
@@ -466,8 +528,14 @@ def hrv_metrics_page(request):
                 w.writerow(row)
             return resp
 
-    return render(request, "hrv_metrics.html", {"results": results, "results_lib": results_lib, "error": error})
+    return render(request, "hrv_metrics.html", {"results": results,
+                                                                   "results_lib": results_lib,
+                                                                   "results_lib_windows": results_lib_windows,
+                                                                   "error": error})
 
+#</editor-fold>
+
+#<editor-fold desc="HRV-Interpretation page">
 
 # --------- HRV-Interpretation page ---------
 
@@ -535,6 +603,9 @@ def hrv_interpretation_page(request):
 
     return render(request, "hrv_interpretation.html", {"results": results, "error": error})
 
+#</editor-fold>
+
+#<editor-fold desc="CSV Merging page">
 
 # --------- CSV Merging page ---------
 
@@ -563,3 +634,5 @@ def merge_csv_page(request):
             return resp
 
     return render(request, "merge_csv.html", {"error": error})
+
+#</editor-fold>
