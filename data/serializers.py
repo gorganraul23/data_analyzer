@@ -22,7 +22,9 @@ class SensorHeartRateSerializer(serializers.ModelSerializer):
                   'value_ibi_2',
                   'status_ibi_2',
                   'value_ibi_3',
-                  'status_ibi_3'
+                  'status_ibi_3',
+                  "value_ibi_depr",
+                  "status_ibi_depr",
                   )
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -105,5 +107,7 @@ class SensorHeartRateActivitiesSerializer(serializers.ModelSerializer):
                   "status_ibi_2",
                   "value_ibi_3",
                   "status_ibi_3",
+                  "value_ibi_depr",
+                  "status_ibi_depr",
                   'timestamp'
                   )

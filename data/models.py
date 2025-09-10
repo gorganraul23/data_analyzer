@@ -59,6 +59,8 @@ class SensorHeartRate(models.Model):
     status_ibi_2 = models.SmallIntegerField(db_column='status_ibi_2', null=True, blank=True)
     value_ibi_3 = models.IntegerField(db_column='value_ibi_3', null=True, blank=True)
     status_ibi_3 = models.SmallIntegerField(db_column='status_ibi_3', null=True, blank=True)
+    value_ibi_depr = models.IntegerField(db_column='value_ibi_depr', null=True, blank=True)
+    status_ibi_depr = models.SmallIntegerField(db_column='status_ibi_depr', null=True, blank=True)
     timestamp = models.BigIntegerField(db_column='timestamp', null=True, blank=True)
 
     session = models.ForeignKey(

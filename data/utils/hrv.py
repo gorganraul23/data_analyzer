@@ -46,34 +46,49 @@ def compute_nn50_lib(rr_list):
 
 # --------- pNN50 ---------
 def compute_pnn50_lib(rr_list):
-    # print(rr_list)
-    # results = td.time_domain(rr_list, plot=False, show=False)
-    # if "plot" in results:
-    #     results.pop("plot", None)
-    # return results['pnn50']
     if len(rr_list) < 2:
         return float("nan")
     return 100 * compute_nn50_lib(rr_list) / len(rr_list)
 
-
 # --------- TINN ---------
 def compute_tinn_lib(rr_list):
     results = td.tinn(rr_list, plot=False, show=False)
-    if "plot" in results:
-        results.pop("plot", None)
+    results.pop("plot", None)
     return results['tinn']
 
 # --------- Freq domain ---------
 def compute_ftt_lib(rr_list):
-    results = fd.welch_psd(nni=rr_list, show=False)
-    if "plot" in results:
-        results.pop("plot", None)
-    vlf, lf, hf = results['fft_abs']
-    return {
-        'lf': float(lf),
-        'hf': float(hf),
-        'ratio': float(results['fft_ratio']),
-    }
+    # if rr_list is None or len(rr_list) < 10:
+    #     return {
+    #         'lf': None,
+    #         'hf': None,
+    #         'ratio': None,
+    #     }
+    #
+    # try:
+    #     results = fd.welch_psd(nni=rr_list, show=False)
+    #     # results.pop("plot", None)
+    #
+    #     vlf, lf, hf = results['fft_abs']
+    #     return {
+    #         'lf': float(lf),
+    #         'hf': float(hf),
+    #         'ratio': float(results['fft_ratio']),
+    #     }
+    # except Exception as e:
+    #     return { 'lf': None, 'hf': None, 'ratio': None }
+    try:
+        results = fd.welch_psd(nni=rr_list, show=False)
+        if "plot" in results:
+            results.pop("plot", None)
+        vlf, lf, hf = results['fft_abs']
+        return {
+            'lf': float(lf),
+            'hf': float(hf),
+            'ratio': float(results['fft_ratio']),
+        }
+    except Exception as e:
+        return { 'lf': None, 'hf': None, 'ratio': None }
 
 # --------- SD ---------
 def compute_sd_lib(rr_list):
@@ -111,7 +126,6 @@ def split_into_chunks(ibi_df: pd.DataFrame):
 
     if ibi_df is None or len(ibi_df) < 2:
         return []
-
     if not {"id", "value_ibi"}.issubset(ibi_df.columns):
         raise ValueError("ibi_df must contain 'id' and 'value_ibi' columns")
 
@@ -186,7 +200,8 @@ def compute_tinn_chunks_lib(chunks):
         return float("nan")
     tinn_vals = []
     for chunk in chunks:
-        result = compute_tinn_lib(chunk)
+        #result = compute_tinn_lib(chunk)
+        result = compute_tinn(chunk)
         tinn_vals.append(result)
 
     return float(np.mean(tinn_vals)) if tinn_vals else float("nan")
@@ -203,7 +218,6 @@ def clean_rr_list(ibi_ms):
     rr = rr[np.isfinite(rr)]
     rr = rr[rr > 0.0]
     # rr = rr[(rr >= 300.0) & (rr <= 2000.0)]
-
     return rr
 
 def _safe_std(x):
@@ -279,7 +293,8 @@ def compute_pnn50(rr_list, threshold_ms=50.0):
 
 # --------- Manual TINN ---------
 def compute_tinn(rr_list, bin_ms=7.8125, peak_frac=0.05):
-    if rr_list.size < 3:
+    #if rr_list.size < 3:
+    if len(rr_list) < 3:
         return float("nan")
     rmin, rmax = float(np.min(rr_list)), float(np.max(rr_list))
     if not np.isfinite(rmin) or not np.isfinite(rmax) or rmax <= rmin:
@@ -338,7 +353,8 @@ def compute_sd1_from_rmssd(rr_list):
 
 # --------- Manual SD2 from RMSSD and SDNN ---------
 def compute_sd2_from_sdnn_rmssd(rr_list):
-    s = compute_sdnn(rr_list); r = compute_rmssd(rr_list)
+    s = compute_sdnn(rr_list)
+    r = compute_rmssd(rr_list)
     if math.isnan(s) or math.isnan(r): return float("nan")
     return float(math.sqrt(max(0.0, 2.0 * (s**2) - 0.5 * (r**2))))
 
@@ -465,7 +481,7 @@ def compute_dfa_a1(rr_list):
 def compute_dfa_a2(rr_list):
     return dfa_alpha(rr_list, scales=range(16, 65), bidirectional=True)
 
-# ----- Stress Index -----
+# ----- Manual Stress Index -----
 def _hist_edges_ms(rr, bin_ms):
     rmin, rmax = float(np.min(rr)), float(np.max(rr))
     left  = bin_ms * math.floor(rmin / bin_ms)
@@ -493,7 +509,7 @@ def compute_stress_index(rr_ms, bin_ms=50.0):
     si = baevsky_stress_index(rr_ms, bin_ms=bin_ms)
     return math.sqrt(si) if si > 0 else float('nan')
 
-# --------- PNS and SNS Index ---------
+# --------- Manual PNS and SNS Index ---------
 def _z(x, mu, sigma):
     return (x - mu) / sigma if (x is not None and math.isfinite(x) and sigma and math.isfinite(sigma)) else float("nan")
 
@@ -508,13 +524,21 @@ def compute_pns_sns(rr_list, norms=None, weights=None):
     rmssd = compute_rmssd(rr_list)
     stress = compute_stress_index(rr_list)
 
-    norms = {
-        'mean_rr': {'mu': 900.0, 'sd': 100.0},
-        'rmssd': {'mu': 42.0, 'sd': 15.0},
-        'sd1_pct': {'mu': 5.0, 'sd': 2.0},
-        'mean_hr': {'mu': 67.0, 'sd': 10.0},
-        'stress': {'mu': 10.0, 'sd': 5.0},
-        'sd2_pct': {'mu': 20.0, 'sd': 7.0},
+    # norms = {
+    #     'mean_rr': {'mu': 900.0, 'sd': 100.0},
+    #     'rmssd': {'mu': 42.0, 'sd': 15.0},
+    #     'sd1_pct': {'mu': 5.0, 'sd': 2.0},
+    #     'mean_hr': {'mu': 67.0, 'sd': 10.0},
+    #     'stress': {'mu': 10.0, 'sd': 5.0},
+    #     'sd2_pct': {'mu': 20.0, 'sd': 7.0},
+    # }
+    norms = norms or {
+        'mean_rr': {'mu': 750.0, 'sd': 100.0},  # ms
+        'rmssd': {'mu': 60.0, 'sd': 25.0},  # ms
+        'sd1_pct': {'mu': 8.0, 'sd': 2.0},  # %
+        'mean_hr': {'mu': 82.0, 'sd': 8.0},  # bpm
+        'stress': {'mu': 10.0, 'sd': 4.0},  # SI
+        'sd2_pct': {'mu': 25.0, 'sd': 7.0},  # %
     }
 
     sd1_pct = float(100.0 * sd1 / mean_rr) if (math.isfinite(sd1) and mean_rr > 0) else float("nan")
@@ -606,9 +630,9 @@ def _band_power(f, p, f1, f2):
     return float(np.trapz(p[mask], f[mask]))
 
 def compute_frequency_domain_metrics(rr_list, fs=4.0,
-                           vlf_band=(0.00, 0.04),
-                           lf_band=(0.04, 0.15),
-                           hf_band=(0.15, 0.40)):
+                                     vlf_band=(0.00, 0.04),
+                                     lf_band=(0.04, 0.15),
+                                     hf_band=(0.15, 0.40)):
     tu, rr_u = resample_rr_tachogram_ms(rr_list, fs=fs)
     if rr_u is None:
         return {"vlf": float("nan"), "lf": float("nan"), "hf": float("nan"), "lf_hf": float("nan")}
@@ -630,14 +654,26 @@ def compute_frequency_domain_metrics(rr_list, fs=4.0,
 
 ############################################################### MAIN
 
+# --------- Manual HR Metrics ---------
+def compute_metrics_from_hr_list(hr_list, rr_list):
+    arr = np.array(hr_list)
+    if arr.size > 0:
+        return { "mean_hr": float(np.mean(arr)) }
+    else:
+        hr_results = compute_hr_mean_std_lib(rr_list)
+        mean_hr = hr_results["mean"]
+        return { "mean_hr": mean_hr }
+
+
 # --------- Manual/Custom HRV Metrics ---------
-def compute_metrics_from_ibi_list(ibi_list):
+def compute_metrics_from_ibi_list_manual(ibi_list):
 
     rr = clean_rr_list(ibi_list)
 
     if rr.size < 3:
         return {
-            "mean_rr": float("nan"), "rmssd": float("nan"), "sdnn": float("nan"), "nn50": float("nan"), "pnn50": float("nan"), "tinn": float("nan"),
+            "mean_rr": float("nan"),
+            "rmssd": float("nan"), "sdnn": float("nan"), "nn50": float("nan"), "pnn50": float("nan"), "tinn": float("nan"),
             "stress_index": float("nan"), "pns_index": float("nan"), "sns_index": float("nan"),
             "lf": float("nan"), "hf": float("nan"), "lf_hf": float("nan"),
             "sd1": float("nan"), "sd2": float("nan"), "sd2_sd1": float("nan"),
@@ -697,17 +733,6 @@ def compute_metrics_from_ibi_list(ibi_list):
     }
 
 
-# --------- Manual HR Metrics ---------
-def compute_metrics_from_hr_list(hr_list, rr_list):
-    arr = np.array(hr_list)
-    if arr.size > 0:
-        return { "mean_hr": float(np.mean(arr)) }
-    else:
-        hr_results = compute_hr_mean_std_lib(rr_list)
-        mean_hr = hr_results["mean"]
-        return { "mean_hr": mean_hr }
-
-
 # --------- HRV using PyHRV Lib ---------
 def compute_metrics_from_ibi_list_lib(ibi_list, id_list):
 
@@ -742,7 +767,8 @@ def compute_metrics_from_ibi_list_lib(ibi_list, id_list):
     pnn50 = compute_pnn50(rr)
     pnn50_chunks = compute_pnn50_chunks_lib(chunks)
 
-    tinn = compute_tinn_lib(rr)
+    #tinn = compute_tinn_lib(rr)
+    tinn = compute_tinn(rr)
     tinn_chunks = compute_tinn_chunks_lib(chunks)
 
     stress_index = compute_stress_index(rr)                 # custom function (no Stress Index in PyHRV)
@@ -780,6 +806,93 @@ def compute_metrics_from_ibi_list_lib(ibi_list, id_list):
         "pnn50_chunks": pnn50_chunks,
         "tinn": tinn,
         "tinn_chunks": tinn_chunks,
+        "lf": lf_power,
+        "hf": hf_power,
+        "lf_hf": lf_hf,
+        "sd1": sd1,
+        "sd2": sd2,
+        "sd2_sd1": sd2_sd1,
+        "ap_en": ap_en,
+        "samp_en": samp_en,
+        "dfa_a1": dfa_a1,
+        "dfa_a2": dfa_a2,
+    }
+
+
+# --------- HRV using IBI Deprecated ---------
+def compute_metrics_from_deprecated_ibi_list(ibi_list, id_list):
+
+    rr = clean_rr_list(ibi_list)
+
+    if rr.size < 3:
+        return {
+            "mean_rr": float("nan"),
+            "rmssd": float("nan"), "rmssd_chunks": float("nan"), "sdnn": float("nan"), "sdnn_chunks": float("nan"),
+            "nn50": float("nan"), "nn50_chunks": float("nan"), "pnn50": float("nan"), "pnn50_chunks": float("nan"),
+            "tinn": float("nan"), "tinn_chunks": float("nan"),
+            "stress_index": float("nan"), "pns_index": float("nan"), "sns_index": float("nan"),
+            "lf": float("nan"), "hf": float("nan"), "lf_hf": float("nan"),
+            "sd1": float("nan"), "sd2": float("nan"), "sd2_sd1": float("nan"),
+            "ap_en": float("nan"), "samp_en": float("nan"), "dfa_a1": float("nan"), "dfa_a2": float("nan"),
+        }
+
+    rr_results = compute_rr_mean_lib(rr)
+    mean_rr = rr_results["mean"]
+
+    # ibi_df = pd.DataFrame({"id": id_list, "value_ibi": ibi_list})
+    # chunks = split_into_chunks(ibi_df)
+
+    rmssd = compute_rmssd_lib(rr)
+    # rmssd_chunks = compute_rmssd_chunks_lib(chunks)
+
+    sdnn = compute_sdnn_lib(rr)
+    # sdnn_chunks = compute_sdnn_chunks_lib(chunks)
+
+    nn50 = compute_nn50_lib(rr)
+    # nn50_chunks = compute_nn50_chunks_lib(chunks)
+
+    pnn50 = compute_pnn50(rr)
+    # pnn50_chunks = compute_pnn50_chunks_lib(chunks)
+
+    #tinn = compute_tinn_lib(rr)
+    tinn = compute_tinn(rr)
+    # tinn_chunks = compute_tinn_chunks_lib(chunks)
+
+    stress_index = compute_stress_index(rr)                 # custom function (no Stress Index in PyHRV)
+    pns_index, sns_index = compute_pns_sns(rr_list=rr)      # custom function (no PNS SNS in PyHRV)
+
+    ftt_results = compute_ftt_lib(rr)
+    lf_power = ftt_results["lf"]
+    hf_power = ftt_results["hf"]
+    lf_hf = ftt_results["ratio"]
+
+    sd_results = compute_sd_lib(rr)
+    sd1 = sd_results["sd1"]
+    sd2 = sd_results["sd2"]
+    sd2_sd1 = sd_results["ratio"]
+
+    ap_en = compute_ap_en(rr)       # custom function (no ApEn in PyHRV)
+    samp_en = compute_sampen_lib(rr)
+
+    dfa_results = compute_dfa_lib(rr)
+    dfa_a1 = dfa_results["dfa_a1"]
+    dfa_a2 = dfa_results["dfa_a2"]
+
+    return {
+        "mean_rr": mean_rr,
+        "rmssd": rmssd,
+        "rmssd_chunks": 0,
+        "sdnn": sdnn,
+        "sdnn_chunks": 0,
+        "stress_index": stress_index,
+        "pns_index": pns_index,
+        "sns_index": sns_index,
+        "nn50": nn50,
+        "nn50_chunks": 0,
+        "pnn50": pnn50,
+        "pnn50_chunks": 0,
+        "tinn": tinn,
+        "tinn_chunks": 0,
         "lf": lf_power,
         "hf": hf_power,
         "lf_hf": lf_hf,

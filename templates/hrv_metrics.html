@@ -41,8 +41,9 @@
         </div>
         <div class="form-item checkboxes">
           <label><input type="checkbox" name="include_window" value="1" checked>Include Sliding Window</label>
-          <label><input type="checkbox" name="include_lib" value="1" checked>Include PyHRV</label>
-          <label><input type="checkbox" name="include_custom" value="1" checked>Include Custom</label>
+          <label><input type="checkbox" name="include_lib" value="1">Include PyHRV</label>
+          <label><input type="checkbox" name="include_custom" value="1">Include Custom</label>
+          <label><input type="checkbox" name="include_deprecated" value="1">Include Deprecated</label>
         </div>
       </div>
 
@@ -194,6 +195,78 @@
           {% endfor %}
         {% else %}
           <tr><td colspan="28">No rows displayed.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+
+    <h4>HRV Metrics using deprecated IBI</h4>
+    <table>
+      <thead>
+          <tr>
+            <th>Activity</th>
+            <th>Type</th>
+            <th>Mean HR</th>
+            <th>Mean RR</th>
+            <th>RMSSD</th>
+<!--            <th>RMSSD chunks</th>-->
+            <th>SDNN</th>
+<!--            <th>SDNN chunks</th>-->
+            <th>NN50</th>
+<!--            <th>NN50 chunks</th>-->
+            <th>pNN50</th>
+<!--            <th>pNN50 chunks</th>-->
+            <th>TINN</th>
+<!--            <th>TINN chunks</th>-->
+            <th>Stress</th>
+            <th>PNS</th>
+            <th>SNS</th>
+            <th>LF</th>
+            <th>HF</th>
+            <th>LF / HF</th>
+            <th>SD1</th>
+            <th>SD2</th>
+            <th>SD2 / SD1</th>
+            <th>ApEn</th>
+            <th>SampEn</th>
+            <th>DFA_a1</th>
+            <th>DFA_a2</th>
+          </tr>
+      </thead>
+      <tbody>
+	    {% if results_depr and results_depr|length %}
+          {% for r in results_depr %}
+            <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
+              <td>{{ r.activity_id }}</td>
+              <td>{{ r.activityType }}</td>
+              <td>{{ r.mean_hr|floatformat:2 }}</td>
+              <td>{{ r.mean_rr|floatformat:2 }}</td>
+              <td>{{ r.rmssd|floatformat:3 }}</td>
+<!--              <td>{{ r.rmssd_chunks|floatformat:3 }}</td>-->
+              <td>{{ r.sdnn|floatformat:3 }}</td>
+<!--              <td>{{ r.sdnn_chunks|floatformat:3 }}</td>-->
+              <td>{{ r.nn50|floatformat:0 }}</td>
+<!--              <td>{{ r.nn50_chunks|floatformat:0 }}</td>-->
+              <td>{{ r.pnn50|floatformat:3 }}</td>
+<!--              <td>{{ r.pnn50_chunks|floatformat:3 }}</td>-->
+              <td>{{ r.tinn|floatformat:3 }}</td>
+<!--              <td>{{ r.tinn_chunks|floatformat:3 }}</td>-->
+              <td>{{ r.stress_index|floatformat:2 }}</td>
+              <td>{{ r.pns_index|floatformat:3 }}</td>
+              <td>{{ r.sns_index|floatformat:3 }}</td>
+              <td>{{ r.lf|floatformat:3 }}</td>
+              <td>{{ r.hf|floatformat:3 }}</td>
+              <td>{{ r.lf_hf|floatformat:3 }}</td>
+              <td>{{ r.sd1|floatformat:3 }}</td>
+              <td>{{ r.sd2|floatformat:3 }}</td>
+              <td>{{ r.sd2_sd1|floatformat:3 }}</td>
+              <td>{{ r.ap_en|floatformat:3 }}</td>
+              <td>{{ r.samp_en|floatformat:3 }}</td>
+              <td>{{ r.dfa_a1|floatformat:3 }}</td>
+              <td>{{ r.dfa_a2|floatformat:3 }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="22">No rows displayed.</td></tr>
         {% endif %}
       </tbody>
     </table>

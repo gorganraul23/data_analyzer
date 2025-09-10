@@ -12,7 +12,8 @@ from .models import SensorHeartRate, Student, Session, Activity
 from .serializers import SensorHeartRateSerializer, StudentSerializer, SessionSerializer, ActivitySerializer, \
     StudentActivitiesSerializer, SensorHeartRateActivitiesSerializer
 from .utils.date_converter import EpochMsDateTimeField
-from .utils.hrv import compute_metrics_from_ibi_list, compute_metrics_from_ibi_list_lib, compute_metrics_from_hr_list
+from .utils.hrv import compute_metrics_from_ibi_list_manual, compute_metrics_from_ibi_list_lib, compute_metrics_from_hr_list, \
+    compute_metrics_from_deprecated_ibi_list
 from .utils.parsers import parse_bool, excel_text
 
 from openpyxl import Workbook
@@ -70,7 +71,7 @@ def student_activities_page(request):
     done_raw = (request.GET.get("done") or "").strip()
     types_raw = (request.GET.get("types") or "").strip()
     limit_raw = (request.GET.get("limit") or "-1").strip()
-    ibi_count_raw = (request.GET.get("ibi_count") or "-1").strip()
+    ibi_count_raw = (request.GET.get("ibi_count") or "120").strip()
 
     # parse limit
     try:
@@ -151,14 +152,21 @@ def student_activities_page(request):
                 "value_ibi_3", "status_ibi_3"
             )
             valid_count = 0
+            valid_depr_count = 0
             for hr in hr_qs:
                 for i in range(4):
                     val = getattr(hr, f"value_ibi_{i}")
                     st = getattr(hr, f"status_ibi_{i}")
                     if st == 110 and val is not None:
                         valid_count += 1
+                ibi_depr = getattr(hr, "value_ibi_depr")
+                status_depr = getattr(hr, "status_ibi_depr")
+                if status_depr == 110 and ibi_depr is not None:
+                    valid_depr_count += 1
 
             r["valid_ibi_count"] = valid_count
+            r["valid_ibi_depr_count"] = valid_depr_count
+
             # apply filter only if ibi_count >= 0
             if ibi_count == -1 or valid_count >= ibi_count:
                 filtered_results.append(r)
@@ -246,12 +254,12 @@ def sensor_heart_rate_activities_page(request):
         results = SensorHeartRateActivitiesSerializer(qs, many=True).data
         count = len(results)
 
-    # download the full CSV and the processed CSV flags
+    # flags download the full CSV and the processed CSV
     download = (request.GET.get("download") or "").strip().lower()
     download_processed = (request.GET.get("download_processed") or "").strip().lower()
 
     # regular CSV download
-    if download in ("1", "true", "yes", "on", "csv"):
+    if download == "1":
         headers = [
             "id",
             "activity_id", "session_id", "student_id",
@@ -260,6 +268,7 @@ def sensor_heart_rate_activities_page(request):
             "value_ibi_1", "status_ibi_1",
             "value_ibi_2", "status_ibi_2",
             "value_ibi_3", "status_ibi_3",
+            "value_ibi_depr", "status_ibi_depr",
             "timestamp"
         ]
         resp = HttpResponse(content_type="text/csv")
@@ -276,31 +285,6 @@ def sensor_heart_rate_activities_page(request):
                 out.append(cell)
             w.writerow(out)
         return resp
-
-    # processed CSV download
-    # if download_processed == "1":
-    #     headers = ["id", "activity_id", "session_id", "student_id", "value_ibi", "timestamp"]
-    #     resp = HttpResponse(content_type="text/csv")
-    #     fname = f"processed_sensor_heart_rate__act_{activity_ids_raw}.csv"
-    #     resp["Content-Disposition"] = f'attachment; filename="{fname}"'
-    #     w = csv.writer(resp)
-    #     w.writerow(headers)
-    #
-    #     if qs is None:
-    #         qs = SensorHeartRate.objects.none()
-    #
-    #     fmt_ts = EpochMsDateTimeField().to_representation
-    #
-    #     for rec in qs:
-    #         base = [rec.id, rec.activity_id, rec.session_id, rec.student_id]
-    #         ts_str = fmt_ts(getattr(rec, "timestamp", None))
-    #         for i in range(4):
-    #             val = getattr(rec, f"value_ibi_{i}")
-    #             st = getattr(rec, f"status_ibi_{i}")
-    #             if st == 110 and val is not None:
-    #                 w.writerow(base + [val, excel_text(ts_str)])
-    #
-    #     return resp
 
     # processed CSV download
     if download_processed == "1":
@@ -330,13 +314,25 @@ def sensor_heart_rate_activities_page(request):
                 if st == 110 and val is not None:
                     ws1.append(base + [val, ts_str])
 
-        # --- Sheet 2: Heart rate values ---
-        ws2 = wb.create_sheet("HeartRate")
-        ws2.append(["id", "activity_id", "session_id", "student_id", "value_heart_rate", "timestamp"])
+        # --- Sheet 2: IBI deprecated values ---
+        ws2 = wb.create_sheet("IBI_Depr")
+        ws2.append(["id", "activity_id", "session_id", "student_id", "value_ibi_depr", "timestamp"])
+
+        for rec in qs:
+            if rec.status_ibi_depr == 110 and rec.value_ibi_depr is not None:
+                ws2.append([
+                    rec.id, rec.activity_id, rec.session_id, rec.student_id,
+                    rec.value_ibi_depr,
+                    fmt_ts(getattr(rec, "timestamp", None))
+                ])
+
+        # --- Sheet 3: Heart rate values ---
+        ws3 = wb.create_sheet("HeartRate")
+        ws3.append(["id", "activity_id", "session_id", "student_id", "value_heart_rate", "timestamp"])
 
         for rec in qs:
             if rec.status_heart_rate == 10 and rec.value_heart_rate is not None:
-                ws2.append([
+                ws3.append([
                     rec.id, rec.activity_id, rec.session_id, rec.student_id,
                     rec.value_heart_rate,
                     fmt_ts(getattr(rec, "timestamp", None))
@@ -364,27 +360,25 @@ def sliding_windows(data, window_size=120, step=30):
     n = len(data)
     if n == 0:
         return
+
     start = 0
     while start + window_size <= n:
-        yield data[start:start + window_size]
+        end = start + window_size
+        yield start, end, data[start:end]
         start += step
-    # remainder
+
+    # Handle remaining tail
     if start < n:
-        tail = data[-window_size:] if n >= window_size else data
-        yield tail
+        end = n
+        start = max(0, n - window_size)
+        yield start, end, data[start:end]
 
 def compute_windowed_metrics(act_id, act_type, ibi_list, id_list, hr_values=None, window_size=120, step=30):
     rows = []
-    if len(ibi_list) < window_size:
-        return rows  # not enough data for one full window
 
-    for start in range(0, len(ibi_list) - window_size + 1, step):
-        end = start + window_size
-        ibi_window = ibi_list[start:end]
+    for start, end, ibi_window in sliding_windows(ibi_list, window_size=window_size, step=step):
         id_window = id_list[start:end]
         hr_window = hr_values[start:end] if hr_values else []
-
-        print(start, end, len(ibi_window), len(id_window), len(hr_window))
 
         metrics = compute_metrics_from_ibi_list_lib(ibi_window, id_window)
         metrics.update(compute_metrics_from_hr_list(hr_window, ibi_window))
@@ -406,6 +400,7 @@ def hrv_metrics_page(request):
     results = []
     results_lib = []
     results_lib_windows = []
+    results_depr = []
     error = None
 
     if request.method == "POST" and request.FILES.get("file"):
@@ -416,32 +411,39 @@ def hrv_metrics_page(request):
             if filename.endswith(".csv"):
                 df = pd.read_csv(f)
                 df_hr = None
+                df_depr = None
             elif filename.endswith((".xls", ".xlsx")):
                 dfs = pd.read_excel(f, sheet_name=None)
                 df = dfs.get("IBI")
                 df_hr = dfs.get("HeartRate")
+                df_depr = dfs.get("IBI_Depr")
             else:
                 raise ValueError("Unsupported file format. Upload CSV or XLSX.")
         except Exception as e:
             error = f"Failed to read file: {e}"
-            return render(request, "hrv_metrics.html", { "error": error, "results": results, "results_lib": results_lib })
+            return render(request, "hrv_metrics.html", { "error": error })
 
         required_cols = {"id", "activity_id", "session_id", "student_id", "value_ibi"}
         if df is None or not required_cols.issubset(set(df.columns)):
             missing = required_cols - set(df.columns)
             error = f"Missing required columns: {', '.join(missing)}"
-            return render(request, "hrv_metrics.html", {"error": error, "results": results, "results_lib": results_lib})
-
-        # Prepare HR data if available
-        if df_hr is not None and "value_heart_rate" in df_hr.columns:
-            df_hr["activity_id"] = pd.to_numeric(df_hr["activity_id"], errors="coerce")
-            df_hr["value_heart_rate"] = pd.to_numeric(df_hr["value_heart_rate"], errors="coerce")
+            return render(request, "hrv_metrics.html", { "error": error })
 
         # ensure numeric types
         df["activity_id"] = pd.to_numeric(df["activity_id"], errors="coerce")
         df["session_id"] = pd.to_numeric(df["session_id"], errors="coerce")
         df["student_id"] = pd.to_numeric(df["student_id"], errors="coerce")
         df["value_ibi"] = pd.to_numeric(df["value_ibi"], errors="coerce")
+
+        # Prepare HR data if available
+        if df_hr is not None and "value_heart_rate" in df_hr.columns:
+            df_hr["activity_id"] = pd.to_numeric(df_hr["activity_id"], errors="coerce")
+            df_hr["value_heart_rate"] = pd.to_numeric(df_hr["value_heart_rate"], errors="coerce")
+
+        # Prepare IBI deprecated data if available
+        if df_depr is not None and "value_ibi_depr" in df_depr.columns:
+            df_depr["activity_id"] = pd.to_numeric(df_depr["activity_id"], errors="coerce")
+            df_depr["value_ibi_depr"] = pd.to_numeric(df_depr["value_ibi_depr"], errors="coerce")
 
         act_ids = df["activity_id"].dropna().astype(int).unique().tolist()
         act_types = dict(Activity.objects.filter(id__in=act_ids).values_list("id", "activityType"))
@@ -450,7 +452,34 @@ def hrv_metrics_page(request):
         include_lib = request.POST.get("include_lib") == "1"
         include_custom = request.POST.get("include_custom") == "1"
         include_window = request.POST.get("include_window") == "1"
+        include_deprecated = request.POST.get("include_deprecated") == "1"
 
+        ## compute deprecated IBI
+        if df_depr is not None and include_deprecated:
+            for act_id, g in df_depr.groupby("activity_id", dropna=True):
+                ibi_depr_ms = g["value_ibi_depr"].dropna().astype(float).values.tolist()
+                id_depr_list = g["id"].dropna().astype(float).values.tolist()
+                act_id_int = int(act_id) if pd.notna(act_id) else None
+
+                hr_values = []
+                if df_hr is not None:
+                    hr_values = df_hr[df_hr["activity_id"] == act_id_int]["value_heart_rate"].dropna().astype(float).tolist()
+
+                ibi_ms = []
+                if df is not None:
+                    ibi_ms = df[df["activity_id"] == act_id_int]["value_ibi"].dropna().astype(float).tolist()
+
+                metrics_depr = compute_metrics_from_deprecated_ibi_list(ibi_depr_ms, id_depr_list)
+                metrics_depr.update(compute_metrics_from_hr_list(hr_values, ibi_ms))
+
+                row_depr = {
+                    "activity_id": act_id_int,
+                    "activityType": act_types.get(act_id_int),
+                    **{k: (None if pd.isna(v) else float(v)) for k, v in metrics_depr.items()},
+                }
+                results_depr.append(row_depr)
+
+        #### main computing
         for act_id, g in df.groupby("activity_id", dropna=True):
             ibi_ms = g["value_ibi"].dropna().astype(float).values.tolist()
             id_list = g["id"].dropna().astype(float).values.tolist()
@@ -460,8 +489,9 @@ def hrv_metrics_page(request):
             if df_hr is not None:
                 hr_values = df_hr[df_hr["activity_id"] == act_id_int]["value_heart_rate"].dropna().astype(float).tolist()
 
+            ## compute custom / manual HRV
             if include_custom:
-                metrics = compute_metrics_from_ibi_list(ibi_ms)
+                metrics = compute_metrics_from_ibi_list_manual(ibi_ms)
                 metrics.update(compute_metrics_from_hr_list(hr_values, ibi_ms))
                 row = {
                     "activity_id": act_id_int,
@@ -470,6 +500,7 @@ def hrv_metrics_page(request):
                 }
                 results.append(row)
 
+            ## compute HRV using PyHRV
             if include_lib:
                 metrics_lib = compute_metrics_from_ibi_list_lib(ibi_ms, id_list)
                 metrics_lib.update(compute_metrics_from_hr_list(hr_values, ibi_ms))
@@ -480,20 +511,26 @@ def hrv_metrics_page(request):
                 }
                 results_lib.append(row_lib)
 
-            # windowed metrics
-            windowed_rows = compute_windowed_metrics(act_id_int, act_types.get(act_id_int), ibi_ms, id_list, hr_values, window_size=120, step=30)
-            results_lib_windows.extend(windowed_rows)
+            # compute sliding windowed metrics
+            if include_window:
+                windowed_rows = compute_windowed_metrics(act_id_int, act_types.get(act_id_int), ibi_ms, id_list, hr_values, window_size=120, step=30)
+                results_lib_windows.extend(windowed_rows)
 
         # sort by activity_id
         if include_custom:
             results.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
         if include_lib:
             results_lib.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
+        if include_window:
+            results_lib_windows.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
+        if include_deprecated:
+            results_depr.sort(key=lambda r: (r["activity_id"] is None, r["activity_id"]))
 
         # CSV download
         if (request.POST.get("download") or "").lower() == "1":
             headers = ["activity_id", "activityType",
-                       "mean_hr", "mean_rr", "rmssd", "rmssd_chunks", "sdnn", "sdnn_chunks",
+                       "mean_hr", "mean_rr",
+                       "rmssd", "rmssd_chunks", "sdnn", "sdnn_chunks",
                        "nn50", "nn50_chunks", "pnn50", "pnn50_chunks", "tinn", "tinn_chunks",
                        "stress_index", "pns_index", "sns_index",
                        "lf", "hf", "lf_hf",
@@ -506,13 +543,16 @@ def hrv_metrics_page(request):
             w = csv.writer(resp)
             w.writerow(headers)
 
+            ## download the first checked list
             results_to_download = []
             if include_window:
                 results_to_download = results_lib_windows
-            elif include_custom and not include_lib:
-                results_to_download = results
-            else:
+            elif include_lib:
                 results_to_download = results_lib
+            elif include_custom:
+                results_to_download = results
+            elif include_deprecated:
+                results_to_download = results_depr
 
             for r in results_to_download:
                 row = []
@@ -531,6 +571,7 @@ def hrv_metrics_page(request):
     return render(request, "hrv_metrics.html", {"results": results,
                                                                    "results_lib": results_lib,
                                                                    "results_lib_windows": results_lib_windows,
+                                                                   "results_depr": results_depr,
                                                                    "error": error})
 
 #</editor-fold>
@@ -553,7 +594,7 @@ def hrv_interpretation_page(request):
             df = pd.read_csv(f)
         except Exception as e:
             error = f"Failed to read CSV: {e}"
-            return render(request, "hrv_interpretation.html", {"error": error, "results": results})
+            return render(request, "hrv_interpretation.html", {"error": error})
 
         required_cols = {"activity_id", "activityType",
                          "mean_hr", "mean_rr",
@@ -564,7 +605,7 @@ def hrv_interpretation_page(request):
         if not required_cols.issubset(set(df.columns)):
             missing = required_cols - set(df.columns)
             error = f"Missing required columns: {', '.join(missing)}"
-            return render(request, "hrv_interpretation.html", {"error": error, "results": results})
+            return render(request, "hrv_interpretation.html", {"error": error})
 
         # Compute relax (delaygratification) average
         relax_df = df[df["activityType"] == "delaygratification"]
@@ -626,8 +667,6 @@ def merge_csv_page(request):
 
         if dfs:
             merged_df = pd.concat(dfs, ignore_index=True)
-
-            # Create response for download
             resp = HttpResponse(content_type="text/csv")
             resp["Content-Disposition"] = 'attachment; filename="merged_hrv_metrics.csv"'
             merged_df.to_csv(resp, index=False)
