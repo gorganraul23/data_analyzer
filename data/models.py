@@ -37,6 +37,7 @@ class Activity(models.Model):
     tEndActivity = models.BigIntegerField(db_column='tendactivity', null=True, blank=True)
     done = models.BooleanField(db_column='done', default=False)
     level = models.IntegerField(db_column='level', null=True, blank=True)
+    performance = models.FloatField(db_column='performance', null=True, blank=True)
     session = models.ForeignKey(
         Session, on_delete=models.DO_NOTHING,
         db_column='sessionID', related_name='activities',

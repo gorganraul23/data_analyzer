@@ -61,6 +61,7 @@
           <tr>
             <th>Activity</th>
             <th>Type</th>
+            <th>Performance</th>
             <th>Mean HR</th>
             <th>Mean RR</th>
             <th>RMSSD</th>
@@ -94,6 +95,7 @@
             <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
               <td>{{ r.activity_id }}</td>
               <td>{{ r.activityType }}</td>
+              <td>{{ r.performance|floatformat:2 }}</td>
               <td>{{ r.mean_hr|floatformat:2 }}</td>
               <td>{{ r.mean_rr|floatformat:2 }}</td>
               <td>{{ r.rmssd|floatformat:3 }}</td>
@@ -133,6 +135,7 @@
           <tr>
             <th>Activity</th>
             <th>Type</th>
+            <th>Performance</th>
             <th>Mean HR</th>
             <th>Mean RR</th>
             <th>RMSSD</th>
@@ -166,6 +169,7 @@
             <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
               <td>{{ r.activity_id }}</td>
               <td>{{ r.activityType }}</td>
+              <td>{{ r.performance|floatformat:2 }}</td>
               <td>{{ r.mean_hr|floatformat:2 }}</td>
               <td>{{ r.mean_rr|floatformat:2 }}</td>
               <td>{{ r.rmssd|floatformat:3 }}</td>
@@ -205,6 +209,7 @@
           <tr>
             <th>Activity</th>
             <th>Type</th>
+            <th>Performance</th>
             <th>Mean HR</th>
             <th>Mean RR</th>
             <th>RMSSD</th>
@@ -238,6 +243,7 @@
             <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
               <td>{{ r.activity_id }}</td>
               <td>{{ r.activityType }}</td>
+              <td>{{ r.performance|floatformat:2 }}</td>
               <td>{{ r.mean_hr|floatformat:2 }}</td>
               <td>{{ r.mean_rr|floatformat:2 }}</td>
               <td>{{ r.rmssd|floatformat:3 }}</td>
@@ -277,6 +283,7 @@
           <tr>
             <th>Activity</th>
             <th>Type</th>
+            <th>Performance</th>
             <th>Mean HR</th>
             <th>Mean RR</th>
             <th>RMSSD</th>
@@ -306,6 +313,7 @@
             <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
               <td>{{ r.activity_id }}</td>
               <td>{{ r.activityType }}</td>
+              <td>{{ r.performance|floatformat:2 }}</td>
               <td>{{ r.mean_hr|floatformat:2 }}</td>
               <td>{{ r.mean_rr|floatformat:2 }}</td>
               <td>{{ r.rmssd|floatformat:3 }}</td>

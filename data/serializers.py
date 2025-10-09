@@ -56,6 +56,7 @@ class ActivitySerializer(serializers.ModelSerializer):
 
     tInitActivity = EpochMsDateTimeField(read_only=True)
     tEndActivity = EpochMsDateTimeField(read_only=True)
+    performance = serializers.FloatField(read_only=True, allow_null=True, required=False)
 
     class Meta:
         model = Activity
@@ -65,24 +66,28 @@ class ActivitySerializer(serializers.ModelSerializer):
                   'tInitActivity',
                   'tEndActivity',
                   'done',
-                  'level'
+                  'level',
+                  'performance'
                   )
 
 class StudentActivitiesSerializer(serializers.ModelSerializer):
-    student_id = serializers.IntegerField(source="session.student_id", read_only=True)
+    #student_id = serializers.IntegerField(source="session.student_id", read_only=True)
+    student_id = serializers.IntegerField(source="session__student_id", read_only=True)
     session_id = serializers.IntegerField(read_only=True)
     activity_id = serializers.IntegerField(source="id", read_only=True)
     done = serializers.BooleanField(read_only=True)
     row_count = serializers.IntegerField(read_only=True)
+    performance = serializers.FloatField(read_only=True, allow_null=True, required=False)
 
     class Meta:
-        model  = Activity
+        model = Activity
         fields = ("student_id",
                   "session_id",
                   "activity_id",
                   "activityType",
                   "done",
                   "level",
+                  "performance",
                   "row_count")
 
 class SensorHeartRateActivitiesSerializer(serializers.ModelSerializer):
@@ -90,6 +95,7 @@ class SensorHeartRateActivitiesSerializer(serializers.ModelSerializer):
     session_id = serializers.IntegerField(read_only=True)
     activity_id = serializers.IntegerField(read_only=True)
     timestamp = EpochMsDateTimeField(read_only=True)
+   # performance = serializers.IntegerField(source="activity__performance", read_only=True, required=False)
 
     class Meta:
         model  = SensorHeartRate
@@ -109,5 +115,6 @@ class SensorHeartRateActivitiesSerializer(serializers.ModelSerializer):
                   "status_ibi_3",
                   "value_ibi_depr",
                   "status_ibi_depr",
-                  'timestamp'
+                  'timestamp',
+                  #'performance'
                   )

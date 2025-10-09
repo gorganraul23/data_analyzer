@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.db import connection
 
 def parse_bool(v: str | None):
     if v is None:
@@ -16,3 +18,13 @@ def excel_text(s):
     s = str(s)
 
     return "" + s
+
+def column_exists(table_name, column_name):
+    with connection.cursor() as cursor:
+        db_name = settings.DATABASES["default"]["NAME"]
+        cursor.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = %s AND table_name = %s AND column_name = %s
+        """, [db_name, table_name, column_name])
+        return cursor.fetchone() is not None

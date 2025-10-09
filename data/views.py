@@ -14,7 +14,7 @@ from .serializers import SensorHeartRateSerializer, StudentSerializer, SessionSe
 from .utils.date_converter import EpochMsDateTimeField
 from .utils.hrv import compute_metrics_from_ibi_list_manual, compute_metrics_from_ibi_list_lib, compute_metrics_from_hr_list, \
     compute_metrics_from_deprecated_ibi_list
-from .utils.parsers import parse_bool, excel_text
+from .utils.parsers import parse_bool, excel_text, column_exists
 
 from openpyxl import Workbook
 
@@ -120,8 +120,13 @@ def student_activities_page(request):
         matched_session_ids = list(sess_qs.values_list("id", flat=True))
 
         # activities
-        act_qs = Activity.objects.select_related("session", "session__student") \
-            .filter(session_id__in=matched_session_ids)
+        act_qs = Activity.objects.select_related("session", "session__student").filter(session_id__in=matched_session_ids)
+
+        has_performance_column = column_exists("activity", "performance")
+        if not has_performance_column:
+            act_qs = act_qs.values("id", "activityType", "session_id", "session__student_id", "done", "level")
+        else:
+            act_qs = act_qs.values("id", "activityType", "session_id", "session__student_id", "done", "level", "performance")
 
         # done
         if done_val is not None:
@@ -137,9 +142,10 @@ def student_activities_page(request):
         else:
             act_qs = act_qs.order_by("session_id", "id")
 
-        matched_activities_ids = list(act_qs.values_list("id", flat=True))
-
         results = StudentActivitiesSerializer(act_qs, many=True).data
+        #results = StudentActivitiesSerializer(list(act_qs), many=True).data
+
+        matched_activities_ids = list(act_qs.values_list("id", flat=True))
 
         # add valid_ibi_count for each activity
         filtered_results = []
@@ -152,20 +158,14 @@ def student_activities_page(request):
                 "value_ibi_3", "status_ibi_3"
             )
             valid_count = 0
-            valid_depr_count = 0
             for hr in hr_qs:
                 for i in range(4):
                     val = getattr(hr, f"value_ibi_{i}")
                     st = getattr(hr, f"status_ibi_{i}")
                     if st == 110 and val is not None:
                         valid_count += 1
-                ibi_depr = getattr(hr, "value_ibi_depr")
-                status_depr = getattr(hr, "status_ibi_depr")
-                if status_depr == 110 and ibi_depr is not None:
-                    valid_depr_count += 1
 
             r["valid_ibi_count"] = valid_count
-            r["valid_ibi_depr_count"] = valid_depr_count
 
             # apply filter only if ibi_count >= 0
             if ibi_count == -1 or valid_count >= ibi_count:
@@ -251,6 +251,12 @@ def sensor_heart_rate_activities_page(request):
                 .select_related("activity", "session", "student")
                 .order_by("activity_id", "id"))
 
+        #has_performance_column = column_exists("activity", "performance")
+        #if not has_performance_column:
+        qs = qs.values("id", "activity_id", "session_id", "student_id", "value_heart_rate", "status_heart_rate",
+                       "value_ibi_0", "status_ibi_0", "value_ibi_1", "status_ibi_1", "value_ibi_2", "status_ibi_2",
+                       "value_ibi_3", "status_ibi_3", "value_ibi_depr", "status_ibi_depr", "timestamp")
+
         results = SensorHeartRateActivitiesSerializer(qs, many=True).data
         count = len(results)
 
@@ -306,11 +312,12 @@ def sensor_heart_rate_activities_page(request):
             qs = SensorHeartRate.objects.none()
 
         for rec in qs:
-            base = [rec.id, rec.activity_id, rec.session_id, rec.student_id]
-            ts_str = fmt_ts(getattr(rec, "timestamp", None))
+            # base = [rec.id, rec.activity_id, rec.session_id, rec.student_id]
+            base = [rec["id"], rec["activity_id"], rec["session_id"], rec["student_id"]]
+            ts_str = fmt_ts(rec.get("timestamp"))
             for i in range(4):
-                val = getattr(rec, f"value_ibi_{i}")
-                st = getattr(rec, f"status_ibi_{i}")
+                val = rec.get(f"value_ibi_{i}")
+                st = rec.get(f"status_ibi_{i}")
                 if st == 110 and val is not None:
                     ws1.append(base + [val, ts_str])
 
@@ -319,11 +326,11 @@ def sensor_heart_rate_activities_page(request):
         ws2.append(["id", "activity_id", "session_id", "student_id", "value_ibi_depr", "timestamp"])
 
         for rec in qs:
-            if rec.status_ibi_depr == 110 and rec.value_ibi_depr is not None:
+            if rec.get("status_ibi_depr") == 110 and rec.get("value_ibi_depr") is not None:
                 ws2.append([
-                    rec.id, rec.activity_id, rec.session_id, rec.student_id,
-                    rec.value_ibi_depr,
-                    fmt_ts(getattr(rec, "timestamp", None))
+                    rec["id"], rec["activity_id"], rec["session_id"], rec["student_id"],
+                    rec["value_ibi_depr"],
+                    fmt_ts(rec.get("timestamp"))
                 ])
 
         # --- Sheet 3: Heart rate values ---
@@ -331,11 +338,11 @@ def sensor_heart_rate_activities_page(request):
         ws3.append(["id", "activity_id", "session_id", "student_id", "value_heart_rate", "timestamp"])
 
         for rec in qs:
-            if rec.status_heart_rate == 10 and rec.value_heart_rate is not None:
+            if rec.get("status_heart_rate") == 10 and rec.get("value_heart_rate") is not None:
                 ws3.append([
-                    rec.id, rec.activity_id, rec.session_id, rec.student_id,
-                    rec.value_heart_rate,
-                    fmt_ts(getattr(rec, "timestamp", None))
+                    rec["id"], rec["activity_id"], rec["session_id"], rec["student_id"],
+                    rec["value_heart_rate"],
+                    fmt_ts(rec.get("timestamp"))
                 ])
 
         wb.save(resp)
@@ -376,6 +383,14 @@ def sliding_windows(data, window_size=120, step=30):
 def compute_windowed_metrics(act_id, act_type, ibi_list, id_list, hr_values=None, window_size=120, step=30):
     rows = []
 
+    has_performance = column_exists("activity", "performance")
+    performance_value = None
+    if has_performance:
+        try:
+            performance_value = (Activity.objects.filter(id=act_id).values_list("performance", flat=True).first())
+        except Exception as e:
+            performance_value = None
+
     for start, end, ibi_window in sliding_windows(ibi_list, window_size=window_size, step=step):
         id_window = id_list[start:end]
         hr_window = hr_values[start:end] if hr_values else []
@@ -388,6 +403,7 @@ def compute_windowed_metrics(act_id, act_type, ibi_list, id_list, hr_values=None
             "activityType": act_type,
             "window_start": start + 1,
             "window_end": end,
+            "performance": performance_value if has_performance else None,
             **{k: (None if pd.isna(v) else float(v)) for k, v in metrics.items()},
         }
         rows.append(row)
@@ -454,6 +470,8 @@ def hrv_metrics_page(request):
         include_window = request.POST.get("include_window") == "1"
         include_deprecated = request.POST.get("include_deprecated") == "1"
 
+        has_performance = column_exists("activity", "performance")
+
         ## compute deprecated IBI
         if df_depr is not None and include_deprecated:
             for act_id, g in df_depr.groupby("activity_id", dropna=True):
@@ -472,9 +490,17 @@ def hrv_metrics_page(request):
                 metrics_depr = compute_metrics_from_deprecated_ibi_list(ibi_depr_ms, id_depr_list)
                 metrics_depr.update(compute_metrics_from_hr_list(hr_values, ibi_ms))
 
+                performance_value = None
+                if has_performance:
+                    try:
+                        performance_value = (Activity.objects.filter(id=act_id).values_list("performance", flat=True).first())
+                    except Exception as e:
+                        performance_value = None
+
                 row_depr = {
                     "activity_id": act_id_int,
                     "activityType": act_types.get(act_id_int),
+                    "performance": performance_value if has_performance else None,
                     **{k: (None if pd.isna(v) else float(v)) for k, v in metrics_depr.items()},
                 }
                 results_depr.append(row_depr)
@@ -489,6 +515,13 @@ def hrv_metrics_page(request):
             if df_hr is not None:
                 hr_values = df_hr[df_hr["activity_id"] == act_id_int]["value_heart_rate"].dropna().astype(float).tolist()
 
+            performance_value = None
+            if has_performance:
+                try:
+                    performance_value = (Activity.objects.filter(id=act_id).values_list("performance", flat=True).first())
+                except Exception as e:
+                    performance_value = None
+
             ## compute custom / manual HRV
             if include_custom:
                 metrics = compute_metrics_from_ibi_list_manual(ibi_ms)
@@ -496,6 +529,7 @@ def hrv_metrics_page(request):
                 row = {
                     "activity_id": act_id_int,
                     "activityType": act_types.get(act_id_int),
+                    "performance": performance_value if has_performance else None,
                     **{k: (None if pd.isna(v) else float(v)) for k, v in metrics.items()},
                 }
                 results.append(row)
@@ -507,6 +541,7 @@ def hrv_metrics_page(request):
                 row_lib = {
                     "activity_id": act_id_int,
                     "activityType": act_types.get(act_id_int),
+                    "performance": performance_value if has_performance else None,
                     **{k: (None if pd.isna(v) else float(v)) for k, v in metrics_lib.items()},
                 }
                 results_lib.append(row_lib)
@@ -528,7 +563,7 @@ def hrv_metrics_page(request):
 
         # CSV download
         if (request.POST.get("download") or "").lower() == "1":
-            headers = ["activity_id", "activityType",
+            headers = ["activity_id", "activityType", "performance",
                        "mean_hr", "mean_rr",
                        "rmssd", "rmssd_chunks", "sdnn", "sdnn_chunks",
                        "nn50", "nn50_chunks", "pnn50", "pnn50_chunks", "tinn", "tinn_chunks",
@@ -536,7 +571,7 @@ def hrv_metrics_page(request):
                        "lf", "hf", "lf_hf",
                        "sd1", "sd2", "sd2_sd1",
                        "ap_en", "samp_en", "dfa_a1", "dfa_a2"]
-            headers_2_decimals = [ "mean_hr", "mean_rr", "stress_index" ]
+            headers_2_decimals = [ "performance", "mean_hr", "mean_rr", "stress_index" ]
             resp = HttpResponse(content_type="text/csv")
             fname = f"hrv_metrics.csv"
             resp["Content-Disposition"] = f'attachment; filename="{fname}"'
@@ -602,6 +637,9 @@ def hrv_interpretation_page(request):
                          "rmssd_chunks", "sdnn_chunks", "nn50_chunks", "pnn50_chunks", "tinn_chunks",
                          "stress_index", "pns_index", "sns_index", "lf", "hf", "lf_hf",
                          "sd1", "sd2", "sd2_sd1", "ap_en", "samp_en", "dfa_a1", "dfa_a2"}
+        if column_exists("activity", "performance"):
+            required_cols.add("performance")
+
         if not required_cols.issubset(set(df.columns)):
             missing = required_cols - set(df.columns)
             error = f"Missing required columns: {', '.join(missing)}"
@@ -673,5 +711,15 @@ def merge_csv_page(request):
             return resp
 
     return render(request, "merge_csv.html", {"error": error})
+
+#</editor-fold>
+
+#<editor-fold desc="Performance Analysis page">
+
+# --------- Performance Analysis page ---------
+
+def performance_analysis_page(request):
+
+    return render(request, "performance_analysis.html", {"error": ""})
 
 #</editor-fold>

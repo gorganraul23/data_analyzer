@@ -20,11 +20,11 @@
   <div class="cards">
     <a class="card" href="{% url 'student_activities_page' %}">
       <h2>Student Activities</h2>
-      <p>Activities for students (by ID).</p>
+      <p>Get the activities for students (by ID).</p>
     </a>
     <a class="card" href="{% url 'sensor_heart_rate_activities_page' %}">
       <h2>Sensor Heart Rate</h2>
-      <p>Sensor HR data - by Activity IDs.</p>
+      <p>Get the data - by Activity IDs.</p>
     </a>
     <a class="card" href="{% url 'hrv_metrics_page' %}">
       <h2>HRV Metrics</h2>
@@ -36,8 +36,16 @@
   <div class="cards-interpretation">
     <a class="card_interpretation" href="{% url 'hrv_interpretation_page' %}">
       <h2>HRV Parameters Interpretation</h2>
-      <p>Interpretation of results CSV</p>
+      <p>Interpretation of results from CSV</p>
     </a>
+    <a class="card_interpretation" href="{% url 'performance_analysis_page' %}">
+      <h2>Performance analysis</h2>
+      <p>See the data - performance correlation</p>
+    </a>
+  </div>
+
+  <h1>Helper</h1>
+  <div class="cards-interpretation">
     <a class="card_interpretation" href="{% url 'merge_csv_page' %}">
       <h2>CSV Merging</h2>
       <p>Merge the CSV with results for AI analysis</p>
