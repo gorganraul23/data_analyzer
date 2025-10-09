@@ -2,17 +2,20 @@
   <meta charset="utf-8">
   <title>Performance Analysis</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 24px; }
-    form { display: grid; gap: 16px; align-items: start; max-width: 600px; }
-    label { font-size: 14px; color: #444; }
-    input[type="file"] { padding: 6px; font-size: 13px; }
-    .btn { padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7;
-           cursor: pointer; border-radius: 8px; text-decoration: none; color: #222; }
-    .btn-primary { background: #4da6ff; color: white; border: none; }
-    .error { color: red; margin-top: 10px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
+	form { display: grid; gap: 16px; align-items: start; }
+	label { display: block; font-size: 12px; color: #444; margin-bottom: 4px; }
+	input { width: 100%; padding: 8px; box-sizing: border-box; }
+	button, a.button { padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; cursor: pointer; border-radius: 8px; text-decoration: none; color: #222; }
+	.meta { margin-top: 10px; color: #555; }
+	table { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 14px; }
+	th, td { border: 1px solid #e5e5e5; padding: 8px 10px; text-align: left; }
+	th { background: #fafafa; }
 	.btn { display: inline-block; padding: 10px 14px; border: 1px solid #ccc; background: #f7f7f7; color: #222; text-decoration: none; border-radius: 8px; cursor: pointer; font: inherit; line-height: 1; -webkit-appearance: none; appearance: none; }
-    .btn-download { width: 40%; background: #0033cc; color: #FFFFFF; }
+    .search-btn { margin-left: 4px; background: #0033cc; color: #FFFFFF; }
     .page-header { display: flex; align-items: center; gap: 12px; }
+    .highlight-row { background-color: #e6f2ff; }
+    input[type="file"] { padding: 6px; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -22,5 +25,93 @@
 	  <h1>Performance Analysis</h1>
   </div>
 
+  <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <div>
+        <label for="file">Upload HRV Metrics CSV</label>
+        <input type="file" id="file" name="file" accept=".csv" required>
+      </div>
+
+      <div class="actions">
+        <a class="btn" href="{% url 'performance_analysis_page' %}">Reset</a>
+<!--        <button class="btn search-btn" type="submit" name="action" value="view">View</button>-->
+        <button class="btn search-btn" type="submit" name="analyze" value="1">View &amp; Analyze</button>
+      </div>
+    </form>
+
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+	<h4>Performance for every activity</h4>
+    <table>
+      <thead>
+          <tr>
+            <th>Activity</th>
+            <th>Type</th>
+            <th>Performance</th>
+            <th>Mean HR</th>
+            <th>Mean RR</th>
+<!--            <th>RMSSD</th>-->
+            <th>RMSSD chunks</th>
+<!--            <th>SDNN</th>-->
+            <th>SDNN chunks</th>
+<!--            <th>NN50</th>-->
+            <th>NN50 chunks</th>
+<!--            <th>pNN50</th>-->
+            <th>pNN50 chunks</th>
+            <th>TINN</th>
+<!--            <th>TINN chunks</th>-->
+            <th>LF</th>
+            <th>HF</th>
+            <th>LF / HF</th>
+            <th>SD1</th>
+            <th>SD2</th>
+            <th>SD2 / SD1</th>
+            <th>ApEn</th>
+            <th>SampEn</th>
+            <th>DFA_a1</th>
+            <th>DFA_a2</th>
+            <th>Stress</th>
+            <th>PNS</th>
+            <th>SNS</th>
+          </tr>
+      </thead>
+      <tbody>
+	    {% if results and results|length %}
+          {% for r in results %}
+            <tr class="{% if r.activityType == 'delaygratification' %}highlight-row{% endif %}">
+              <td>{{ r.activity_id }}</td>
+              <td>{{ r.activityType }}</td>
+              <td style="{{ r.styles.performance|default:'' }}">{{ r.performance|floatformat:2 }}</td>
+              <td style="{{ r.styles.mean_hr|default:'' }}">{{ r.mean_hr|floatformat:2 }}</td>
+              <td style="{{ r.styles.mean_rr|default:'' }}">{{ r.mean_rr|floatformat:2 }}</td>
+<!--              <td style="{{ r.styles.rmssd|default:'' }}">{{ r.rmssd|floatformat:3 }}</td>-->
+              <td style="{{ r.styles.rmssd_chunks|default:'' }}">{{ r.rmssd_chunks|floatformat:3 }}</td>
+<!--              <td style="{{ r.styles.sdnn|default:'' }}">{{ r.sdnn|floatformat:3 }}</td>-->
+              <td style="{{ r.styles.sdnn_chunks|default:'' }}">{{ r.sdnn_chunks|floatformat:3 }}</td>
+<!--              <td style="{{ r.styles.nn50|default:'' }}">{{ r.nn50|floatformat:0 }}</td>-->
+              <td style="{{ r.styles.nn50_chunks|default:'' }}">{{ r.nn50_chunks|floatformat:0 }}</td>
+<!--              <td style="{{ r.styles.pnn50|default:'' }}">{{ r.pnn50|floatformat:3 }}</td>-->
+              <td style="{{ r.styles.pnn50_chunks|default:'' }}">{{ r.pnn50_chunks|floatformat:3 }}</td>
+              <td style="{{ r.styles.tinn|default:'' }}">{{ r.tinn|floatformat:3 }}</td>
+<!--              <td style="{{ r.styles.tinn_chunks|default:'' }}">{{ r.tinn_chunks|floatformat:3 }}</td>-->
+              <td style="{{ r.styles.lf|default:'' }}">{{ r.lf|floatformat:3 }}</td>
+              <td style="{{ r.styles.hf|default:'' }}">{{ r.hf|floatformat:3 }}</td>
+              <td style="{{ r.styles.lf_hf|default:'' }}">{{ r.lf_hf|floatformat:3 }}</td>
+              <td style="{{ r.styles.sd1|default:'' }}">{{ r.sd1|floatformat:3 }}</td>
+              <td style="{{ r.styles.sd2|default:'' }}">{{ r.sd2|floatformat:3 }}</td>
+              <td style="{{ r.styles.sd2_sd1|default:'' }}">{{ r.sd2_sd1|floatformat:3 }}</td>
+              <td style="{{ r.styles.ap_en|default:'' }}">{{ r.ap_en|floatformat:3 }}</td>
+              <td style="{{ r.styles.samp_en|default:'' }}">{{ r.samp_en|floatformat:3 }}</td>
+              <td style="{{ r.styles.dfa_a1|default:'' }}">{{ r.dfa_a1|floatformat:3 }}</td>
+              <td style="{{ r.styles.dfa_a2|default:'' }}">{{ r.dfa_a2|floatformat:3 }}</td>
+              <td style="{{ r.styles.stress_index|default:'' }}">{{ r.stress_index|floatformat:2 }}</td>
+              <td style="{{ r.styles.pns_index|default:'' }}">{{ r.pns_index|floatformat:3 }}</td>
+              <td style="{{ r.styles.sns_index|default:'' }}">{{ r.sns_index|floatformat:3 }}</td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="29">No rows displayed.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
 </body>

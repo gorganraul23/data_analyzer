@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import connection
+import matplotlib.colors as mcolors
 
 def parse_bool(v: str | None):
     if v is None:
@@ -28,3 +29,9 @@ def column_exists(table_name, column_name):
             WHERE table_schema = %s AND table_name = %s AND column_name = %s
         """, [db_name, table_name, column_name])
         return cursor.fetchone() is not None
+
+def performance_color(perf):
+    cmap = mcolors.LinearSegmentedColormap.from_list("perf_scale", ["#ff0000", "#ffff00", "#00b050"])
+    rgba = cmap(perf / 100)
+    hex_color = mcolors.to_hex(rgba)
+    return f"background-color: {hex_color};"

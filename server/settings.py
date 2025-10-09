@@ -84,7 +84,9 @@ WSGI_APPLICATION = 'server.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'scoala_1',
+        #'NAME': 'empower',
+        #'NAME': 'scoala_1',
+        'NAME': 'scoala_2',
         'USER': 'root',
         'PASSWORD': 'root',
         'HOST': '127.0.0.1',

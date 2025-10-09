@@ -14,7 +14,7 @@ from .serializers import SensorHeartRateSerializer, StudentSerializer, SessionSe
 from .utils.date_converter import EpochMsDateTimeField
 from .utils.hrv import compute_metrics_from_ibi_list_manual, compute_metrics_from_ibi_list_lib, compute_metrics_from_hr_list, \
     compute_metrics_from_deprecated_ibi_list
-from .utils.parsers import parse_bool, excel_text, column_exists
+from .utils.parsers import parse_bool, excel_text, column_exists, performance_color
 
 from openpyxl import Workbook
 
@@ -719,7 +719,77 @@ def merge_csv_page(request):
 # --------- Performance Analysis page ---------
 
 def performance_analysis_page(request):
+    results = []
+    error = None
+    relax_means = {}
 
-    return render(request, "performance_analysis.html", {"error": ""})
+    if request.method == "POST" and request.FILES.get("file"):
+        f = request.FILES["file"]
+
+        try:
+            df = pd.read_csv(f)
+        except Exception as e:
+            error = f"Failed to read CSV: {e}"
+            return render(request, "performance_analysis.html", {"error": error})
+
+        # Required columns
+        required_cols = {
+            "activity_id", "activityType",
+            "mean_hr", "mean_rr",
+            "rmssd", "sdnn", "nn50", "pnn50", "tinn",
+            "rmssd_chunks", "sdnn_chunks", "nn50_chunks", "pnn50_chunks", "tinn_chunks",
+            "stress_index", "pns_index", "sns_index", "lf", "hf", "lf_hf",
+            "sd1", "sd2", "sd2_sd1", "ap_en", "samp_en", "dfa_a1", "dfa_a2"
+        }
+        if column_exists("activity", "performance"):
+            required_cols.add("performance")
+
+        if not required_cols.issubset(df.columns):
+            missing = required_cols - set(df.columns)
+            error = f"Missing required columns: {', '.join(missing)}"
+            return render(request, "performance_analysis.html", {"error": error})
+
+        group_cols = ["activity_id", "activityType"]
+        numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c]) and c not in group_cols]
+        grouped_df = (df.groupby(group_cols, dropna=False)[numeric_cols].mean(numeric_only=True).reset_index())
+
+        relax_df = grouped_df[grouped_df["activityType"] == "delaygratification"]
+        if not relax_df.empty:
+            relax_means = relax_df.mean(numeric_only=True).to_dict()
+
+        analyzed = (request.POST.get("analyze") or "").lower() == "1"
+
+        decrease_metrics = [
+            "mean_rr",
+            "rmssd", "rmssd_chunks", "sdnn", "sdnn_chunks",
+            "nn50", "nn50_chunks", "pnn50", "pnn50_chunks", "tinn", "tinn_chunks",
+            "lf", "hf", "sd1", "sd2", "sd2_sd1",
+            "ap_en", "samp_en", "dfa_a1", "dfa_a2", "pns_index"
+        ]
+        increase_metrics = ["mean_hr", "lf_hf", "stress_index", "sns_index"]
+
+        for _, row in grouped_df.iterrows():
+            r = {col: row[col] for col in grouped_df.columns}
+            r["styles"] = {}
+
+            if analyzed and relax_means and row["activityType"] != "delaygratification":
+                for m in decrease_metrics:
+                    val = r.get(m)
+                    baseline = relax_means.get(m)
+                    if pd.notna(val) and pd.notna(baseline):
+                        r["styles"][m] = "background-color: #c6efce;" if val < baseline else "background-color: #ffc7ce;"
+
+                for m in increase_metrics:
+                    val = r.get(m)
+                    baseline = relax_means.get(m)
+                    if pd.notna(val) and pd.notna(baseline):
+                        r["styles"][m] = "background-color: #c6efce;" if val > baseline else "background-color: #ffc7ce;"
+
+                if "performance" in r and pd.notna(r["performance"]):
+                    r["styles"]["performance"] = performance_color(r["performance"])
+
+            results.append(r)
+
+    return render(request, "performance_analysis.html", {"results": results, "error": error})
 
 #</editor-fold>
